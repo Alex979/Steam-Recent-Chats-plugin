@@ -77,6 +77,81 @@ describe('chat adapter', () => {
 		]);
 	});
 
+	test('preserves app and sender context for group invite previews', () => {
+		const incomingRoom = {
+			GetLastMessage: () => '[gameinvite appid=730][/gameinvite]',
+			time_last_message: 300,
+			accountid_last_message: 7,
+		};
+		const outgoingRoom = {
+			GetLastMessage: () => '[tradeoffer tradeofferid=123][/tradeoffer]',
+			time_last_message: 200,
+			accountid_last_message: 99,
+		};
+		const groups = [
+			{
+				name: 'Squad',
+				GetGroupID: () => '1',
+				GetRoomWithLastMessageForUser: () => incomingRoom,
+				GetMember: () => ({ display_name: 'Grace' }),
+			},
+			{
+				name: 'Trading',
+				GetGroupID: () => '2',
+				GetRoomWithLastMessageForUser: () => outgoingRoom,
+			},
+		];
+		const store = {
+			ChatStore: { GetRecentChats: () => groups },
+			FriendStore: { self: { accountid: 99 } },
+			AppInfoStore: { GetAppInfo: () => ({ name: 'Counter-Strike 2' }) },
+		} as SteamRootStore;
+
+		expect(normalizeRecentChats(store)).toEqual([
+			expect.objectContaining({ snippet: 'Grace: Game invite for Counter-Strike 2' }),
+			expect.objectContaining({ snippet: 'You: Trade offer' }),
+		]);
+	});
+
+	test('does not infer You from missing sender IDs', () => {
+		const room = { GetLastMessage: () => 'Unknown sender', time_last_message: 100 };
+		const group = {
+			name: 'Squad',
+			GetGroupID: () => '1',
+			GetRoomWithLastMessageForUser: () => room,
+		};
+		const store = {
+			ChatStore: { GetRecentChats: () => [group] },
+			FriendStore: {},
+		} as SteamRootStore;
+
+		expect(normalizeRecentChats(store)[0].snippet).toBe('Unknown sender');
+	});
+
+	test('keeps unread chats without a top-level timestamp and uses loaded-message time when available', () => {
+		const withoutTimestamp = {
+			accountid_partner: 42,
+			chat_partner: { display_name: 'Ada', persona: {} },
+			GetLastMessage: () => 'Unread message',
+			unread_message_count: 1,
+		};
+		const withLoadedTimestamp = {
+			accountid_partner: 43,
+			chat_partner: { display_name: 'Grace', persona: {} },
+			GetLastMessage: () => 'Loaded message',
+			chat_messages: [{ strMessage: 'Loaded message', rtTimestamp: 250 }],
+		};
+		const store = {
+			ChatStore: { GetRecentChats: () => [withoutTimestamp, withLoadedTimestamp] },
+			FriendStore: { self: { accountid: 99 } },
+		} as SteamRootStore;
+
+		expect(normalizeRecentChats(store)).toEqual([
+			expect.objectContaining({ name: 'Grace', timestamp: 250 }),
+			expect.objectContaining({ name: 'Ada', timestamp: 0, unread: 1 }),
+		]);
+	});
+
 	test('converts an account ID to an exact SteamID64 string', () => {
 		expect(steamId64FromAccountId(42)).toBe('76561197960265770');
 	});

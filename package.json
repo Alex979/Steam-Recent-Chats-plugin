@@ -9,15 +9,13 @@
         "@steambrew/api": "^5.8.4",
         "@steambrew/client": "^5.8.4",
         "@steambrew/ttc": "^3.2.6",
-        "@steambrew/webkit": "^5.8.4",
         "@types/react": "19.1.1",
         "@types/react-dom": "19.1.1"
     },
     "type": "module",
     "name": "recent-chats",
-    "version": "0.2.0",
+    "version": "0.2.1",
     "description": "A recent-conversations view for Steam Friends & Chat",
-    "main": "./frontend/index.jsx",
     "author": "Alex Broaddus",
     "license": "MIT"
 }

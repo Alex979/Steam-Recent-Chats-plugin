@@ -1,6 +1,6 @@
 import { findModuleExport, getReactInstance, Millennium, modules, definePlugin } from '@steambrew/client';
 import { createRoot, Root } from 'react-dom/client';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import { normalizeRecentChats, RecentConversation, SteamRootStore, steamId64FromAccountId } from './chat-adapter';
 import { FRIENDS_WINDOW_STYLES } from './styles';
@@ -11,6 +11,9 @@ const TAB_HOST_ID = 'recent-chats-poc-tab-host';
 const PANEL_HOST_ID = 'recent-chats-poc-panel-host';
 const STYLE_ID = 'recent-chats-poc-styles';
 const OPEN_ATTRIBUTE = 'data-recent-chats-poc-open';
+const DOCUMENT_RECONCILE_INTERVAL_MS = 500;
+const CHAT_REFRESH_INTERVAL_MS = 2_000;
+const STORE_DISCOVERY_MAX_DELAY_MS = 30_000;
 
 interface PopupContext {
 	m_strName?: string;
@@ -18,12 +21,14 @@ interface PopupContext {
 }
 
 interface MountedWindow {
+	generation: number;
+	popupWindow: Window;
 	document: Document;
 	root: Root;
 	tabHost: HTMLElement;
 	panelHost: HTMLElement;
-	closeFromFriendsTab?: () => void;
-	friendsTab?: HTMLElement;
+	header: HTMLElement;
+	closeFromNativeHeader: EventListener;
 }
 
 interface FriendsAnchors {
@@ -33,9 +38,10 @@ interface FriendsAnchors {
 	contentIsFallback: boolean;
 }
 
-const mountedWindows = new Set<MountedWindow>();
-const attachingWindows = new WeakSet<Window>();
+const mountedWindows = new Map<Window, MountedWindow>();
+const monitoringWindows = new WeakMap<Window, number>();
 let pluginActive = true;
+let lifecycleGeneration = 0;
 
 function isSteamRootStore(candidate: unknown): candidate is SteamRootStore {
 	if (!candidate || typeof candidate !== 'object') return false;
@@ -86,8 +92,9 @@ function findSteamRootStore(document: Document): SteamRootStore | undefined {
 	return findStoreFromFriendsReactTree(document);
 }
 
-function relativeTime(timestamp: number): string {
-	const elapsed = Math.max(0, Math.floor(Date.now() / 1000) - timestamp);
+function relativeTime(timestamp: number, now: number): string {
+	if (timestamp <= 0) return '';
+	const elapsed = Math.max(0, Math.floor(now / 1000) - timestamp);
 	if (elapsed < 60) return 'now';
 	if (elapsed < 3600) return `${Math.floor(elapsed / 60)}m`;
 	if (elapsed < 86400) return `${Math.floor(elapsed / 3600)}h`;
@@ -97,6 +104,24 @@ function relativeTime(timestamp: number): string {
 	return new Date(timestamp * 1000).toLocaleDateString(undefined, {
 		month: 'short',
 		day: 'numeric',
+	});
+}
+
+function sameConversations(left: RecentConversation[], right: RecentConversation[]): boolean {
+	if (left.length !== right.length) return false;
+	return left.every((conversation, index) => {
+		const other = right[index];
+		return (
+			conversation.id === other.id &&
+			conversation.kind === other.kind &&
+			conversation.name === other.name &&
+			conversation.snippet === other.snippet &&
+			conversation.timestamp === other.timestamp &&
+			conversation.unread === other.unread &&
+			conversation.avatarUrl === other.avatarUrl &&
+			conversation.accountId === other.accountId &&
+			conversation.raw === other.raw
+		);
 	});
 }
 
@@ -157,29 +182,69 @@ function RecentChatsPanel({ document, popupWindow }: RecentChatsAppProps) {
 	const [store, setStore] = useState<SteamRootStore>();
 	const [conversations, setConversations] = useState<RecentConversation[]>([]);
 	const [error, setError] = useState<string>();
+	const [isOpen, setIsOpen] = useState(() => document.documentElement.hasAttribute(OPEN_ATTRIBUTE));
+	const [now, setNow] = useState(() => Date.now());
+	const storeRef = useRef<SteamRootStore | undefined>(undefined);
 
-	const refresh = useCallback(() => {
-		const activeStore = store ?? findSteamRootStore(document);
-		if (!activeStore) {
-			setError('Steam ChatStore not found on this build');
-			return;
-		}
-
+	const refresh = useCallback((): boolean => {
 		try {
-			setStore(activeStore);
-			setConversations(normalizeRecentChats(activeStore));
+			const activeStore = storeRef.current ?? findSteamRootStore(document);
+			if (!activeStore) {
+				setError('Steam ChatStore not found on this build');
+				return false;
+			}
+
+			storeRef.current = activeStore;
+			setStore((current) => (current === activeStore ? current : activeStore));
+			const nextConversations = normalizeRecentChats(activeStore);
+			setConversations((current) => (sameConversations(current, nextConversations) ? current : nextConversations));
 			setError(undefined);
+			return true;
 		} catch (refreshError) {
 			console.error(LOG_PREFIX, 'Failed to read recent chats.', refreshError);
 			setError('Steam returned an unexpected chat shape');
+			return false;
 		}
-	}, [document, store]);
+	}, [document]);
 
 	useEffect(() => {
-		refresh();
-		const interval = popupWindow.setInterval(refresh, 2000);
+		const syncOpenState = () => setIsOpen(document.documentElement.hasAttribute(OPEN_ATTRIBUTE));
+		const PopupMutationObserver = (popupWindow as Window & { MutationObserver?: typeof MutationObserver })
+			.MutationObserver;
+		const observer = new (PopupMutationObserver ?? MutationObserver)(syncOpenState);
+		observer.observe(document.documentElement, { attributes: true, attributeFilter: [OPEN_ATTRIBUTE] });
+		syncOpenState();
+		return () => observer.disconnect();
+	}, [document, popupWindow]);
+
+	useEffect(() => {
+		if (!isOpen) return undefined;
+		let cancelled = false;
+		let timeout: number | undefined;
+		let retryDelay = CHAT_REFRESH_INTERVAL_MS;
+
+		const poll = () => {
+			const succeeded = refresh();
+			if (cancelled) return;
+			timeout = popupWindow.setTimeout(poll, succeeded ? CHAT_REFRESH_INTERVAL_MS : retryDelay);
+			retryDelay = succeeded
+				? CHAT_REFRESH_INTERVAL_MS
+				: Math.min(retryDelay * 2, STORE_DISCOVERY_MAX_DELAY_MS);
+		};
+
+		poll();
+		return () => {
+			cancelled = true;
+			if (timeout !== undefined) popupWindow.clearTimeout(timeout);
+		};
+	}, [isOpen, popupWindow, refresh]);
+
+	useEffect(() => {
+		if (!isOpen) return undefined;
+		setNow(Date.now());
+		const interval = popupWindow.setInterval(() => setNow(Date.now()), 60_000);
 		return () => popupWindow.clearInterval(interval);
-	}, [popupWindow, refresh]);
+	}, [isOpen, popupWindow]);
 
 	const filteredConversations = useMemo(() => {
 		const normalizedQuery = query.trim().toLocaleLowerCase();
@@ -221,7 +286,7 @@ function RecentChatsPanel({ document, popupWindow }: RecentChatsAppProps) {
 							<span className="rcp-snippet">{conversation.snippet}</span>
 						</span>
 						<span className="rcp-meta">
-							<span className="rcp-time">{relativeTime(conversation.timestamp)}</span>
+							{conversation.timestamp > 0 && <span className="rcp-time">{relativeTime(conversation.timestamp, now)}</span>}
 							{conversation.unread > 0 && <span className="rcp-unread">{conversation.unread}</span>}
 						</span>
 					</button>
@@ -267,103 +332,163 @@ function findFriendsAnchors(document: Document): FriendsAnchors | undefined {
 	return { document, header, content, contentIsFallback: !primaryContent };
 }
 
-async function waitForFriendsAnchors(context: PopupContext, timeoutMs: number): Promise<FriendsAnchors> {
-	const startedAt = Date.now();
-	let latestDocument: Document | undefined;
-
-	while (pluginActive && Date.now() - startedAt < timeoutMs) {
-		latestDocument = context.window?.document;
-		if (latestDocument) {
-			const anchors = findFriendsAnchors(latestDocument);
-			if (anchors) return anchors;
-		}
-		await delay(250);
-	}
-
-	const bodySummary = latestDocument?.body
-		? Array.from(latestDocument.body.children)
-				.slice(0, 8)
-				.map((element) => `${element.tagName.toLowerCase()}#${element.id}.${element.className}`)
-				.join(', ')
-		: 'no body';
-	throw new Error(
-		`Friends anchors not found; readyState=${latestDocument?.readyState ?? 'unknown'}, url=${latestDocument?.URL ?? 'unknown'}, body=${bodySummary}`,
-	);
+function removeOrphanedInjection(document: Document): void {
+	document.documentElement.removeAttribute(OPEN_ATTRIBUTE);
+	document.getElementById(TAB_HOST_ID)?.remove();
+	document.getElementById(PANEL_HOST_ID)?.remove();
+	document.getElementById(STYLE_ID)?.remove();
 }
 
-async function attachToFriendsWindow(context: PopupContext): Promise<void> {
+function mountFriendsDocument(popupWindow: Window, anchors: FriendsAnchors, generation: number): MountedWindow {
+	const { document, header, content, contentIsFallback } = anchors;
+	const contentParent = content.parentElement;
+	if (!contentParent) throw new Error('Friends content has no parent element');
+
+	removeOrphanedInjection(document);
+	ensureStyle(document);
+
+	const tabHost = document.createElement('div');
+	tabHost.id = TAB_HOST_ID;
+	if (!header.classList.contains('socialTabContainer')) tabHost.classList.add('rcp-header-fallback');
+	header.append(tabHost);
+
+	const tabButton = document.createElement('button');
+	tabButton.className = 'rcp-tab-button';
+	tabButton.type = 'button';
+	tabButton.setAttribute('role', 'tab');
+	tabButton.setAttribute('aria-selected', 'false');
+	tabButton.setAttribute('aria-controls', PANEL_HOST_ID);
+	const tabLabel = document.createElement('span');
+	tabLabel.className = 'tabLabel';
+	tabLabel.textContent = 'Chats';
+	tabButton.append(tabLabel);
+	tabHost.append(tabButton);
+
+	const panelHost = document.createElement('div');
+	panelHost.id = PANEL_HOST_ID;
+	panelHost.setAttribute('role', 'tabpanel');
+	if (contentIsFallback) panelHost.classList.add('rcp-content-fallback');
+	contentParent.insertBefore(panelHost, content);
+
+	const setOpen = (open: boolean) => {
+		const wasOpen = document.documentElement.hasAttribute(OPEN_ATTRIBUTE);
+		if (open) document.documentElement.setAttribute(OPEN_ATTRIBUTE, 'true');
+		else document.documentElement.removeAttribute(OPEN_ATTRIBUTE);
+		tabButton.classList.toggle('rcp-active', open);
+		tabButton.setAttribute('aria-selected', String(open));
+		if (wasOpen !== open) console.info(LOG_PREFIX, open ? 'Opened Chats panel' : 'Closed Chats panel');
+	};
+
+	tabButton.addEventListener('click', (event) => {
+		event.preventDefault();
+		event.stopPropagation();
+		setOpen(!document.documentElement.hasAttribute(OPEN_ATTRIBUTE));
+	});
+
+	const closeFromNativeHeader: EventListener = (event) => {
+		const target = event.target as Node | null;
+		if (!target || tabHost.contains(target)) return;
+		setOpen(false);
+	};
+	header.addEventListener('click', closeFromNativeHeader);
+
+	const root = createRoot(panelHost);
+	root.render(<RecentChatsPanel document={document} popupWindow={popupWindow} />);
+	console.info(LOG_PREFIX, 'Attached to', FRIENDS_POPUP_NAME, `using ${contentIsFallback ? 'fallback' : 'primary'} anchors`);
+
+	return { generation, popupWindow, document, root, tabHost, panelHost, header, closeFromNativeHeader };
+}
+
+function cleanupStep(description: string, action: () => void): void {
+	try {
+		action();
+	} catch (error) {
+		console.warn(LOG_PREFIX, `Could not ${description}.`, error);
+	}
+}
+
+function disposeMountedWindow(mounted: MountedWindow): void {
+	cleanupStep('clear the open state', () => mounted.document.documentElement.removeAttribute(OPEN_ATTRIBUTE));
+	cleanupStep('remove the native-header listener', () =>
+		mounted.header.removeEventListener('click', mounted.closeFromNativeHeader),
+	);
+	cleanupStep('unmount the Chats panel', () => mounted.root.unmount());
+	cleanupStep('remove the Chats tab', () => mounted.tabHost.remove());
+	cleanupStep('remove the Chats panel host', () => mounted.panelHost.remove());
+	cleanupStep('remove the Chats styles', () => mounted.document.getElementById(STYLE_ID)?.remove());
+}
+
+function currentPopupDocument(popupWindow: Window): Document | undefined {
+	try {
+		return popupWindow.document;
+	} catch {
+		return undefined;
+	}
+}
+
+function popupIsClosed(popupWindow: Window): boolean {
+	try {
+		return popupWindow.closed;
+	} catch {
+		return true;
+	}
+}
+
+function mountIsCurrent(mounted: MountedWindow, document: Document | undefined): boolean {
+	try {
+		return mounted.document === document && mounted.tabHost.isConnected && mounted.panelHost.isConnected;
+	} catch {
+		return false;
+	}
+}
+
+async function monitorFriendsWindow(context: PopupContext, generation: number): Promise<void> {
 	if (!pluginActive || context.m_strName !== FRIENDS_POPUP_NAME || !context.window) return;
-	if (attachingWindows.has(context.window)) return;
-	attachingWindows.add(context.window);
+	const popupWindow = context.window;
+	if (monitoringWindows.get(popupWindow) === generation) return;
+	monitoringWindows.set(popupWindow, generation);
 
 	try {
-		const anchors = await waitForFriendsAnchors(context, 30_000);
-		const { document, header, content, contentIsFallback } = anchors;
-		if (!pluginActive || document.getElementById(TAB_HOST_ID)) return;
+		while (pluginActive && generation === lifecycleGeneration && !popupIsClosed(popupWindow)) {
+			const document = currentPopupDocument(popupWindow);
+			const mounted = mountedWindows.get(popupWindow);
 
-		ensureStyle(document);
+			if (mounted && !mountIsCurrent(mounted, document)) {
+				mountedWindows.delete(popupWindow);
+				disposeMountedWindow(mounted);
+			}
 
-		const tabHost = document.createElement('div');
-		tabHost.id = TAB_HOST_ID;
-		if (!header.classList.contains('socialTabContainer')) tabHost.classList.add('rcp-header-fallback');
-		header.append(tabHost);
+			if (document && !mountedWindows.has(popupWindow)) {
+				const anchors = findFriendsAnchors(document);
+				if (anchors) {
+					try {
+						mountedWindows.set(popupWindow, mountFriendsDocument(popupWindow, anchors, generation));
+					} catch (error) {
+						console.error(LOG_PREFIX, 'Could not attach to the Friends window.', error);
+					}
+				}
+			}
 
-		const tabButton = document.createElement('button');
-		tabButton.className = 'rcp-tab-button';
-		tabButton.type = 'button';
-		tabButton.setAttribute('role', 'tab');
-		tabButton.setAttribute('aria-selected', 'false');
-		tabButton.setAttribute('aria-controls', PANEL_HOST_ID);
-		const tabLabel = document.createElement('span');
-		tabLabel.className = 'tabLabel';
-		tabLabel.textContent = 'Chats';
-		tabButton.append(tabLabel);
-		tabHost.append(tabButton);
-
-		const panelHost = document.createElement('div');
-		panelHost.id = PANEL_HOST_ID;
-		panelHost.setAttribute('role', 'tabpanel');
-		if (contentIsFallback) panelHost.classList.add('rcp-content-fallback');
-		content.parentElement?.insertBefore(panelHost, content);
-
-		const setOpen = (open: boolean) => {
-			if (open) document.documentElement.setAttribute(OPEN_ATTRIBUTE, 'true');
-			else document.documentElement.removeAttribute(OPEN_ATTRIBUTE);
-			tabButton.classList.toggle('rcp-active', open);
-			tabButton.setAttribute('aria-selected', String(open));
-			console.info(LOG_PREFIX, open ? 'Opened Chats panel' : 'Closed Chats panel');
-		};
-		tabButton.addEventListener('click', (event) => {
-			event.preventDefault();
-			event.stopPropagation();
-			setOpen(!document.documentElement.hasAttribute(OPEN_ATTRIBUTE));
-		});
-
-		const friendsTab = header.querySelector<HTMLElement>('.friendTab');
-		const closeFromFriendsTab = () => setOpen(false);
-		friendsTab?.addEventListener('click', closeFromFriendsTab);
-
-		const root = createRoot(panelHost);
-		root.render(<RecentChatsPanel document={document} popupWindow={context.window} />);
-		mountedWindows.add({ document, root, tabHost, panelHost, closeFromFriendsTab, friendsTab });
-		console.info(LOG_PREFIX, 'Attached to', context.m_strName, `using ${contentIsFallback ? 'fallback' : 'primary'} anchors`);
+			await delay(DOCUMENT_RECONCILE_INTERVAL_MS);
+		}
 	} catch (error) {
-		console.error(LOG_PREFIX, 'Could not attach to the Friends window.', error);
+		if (pluginActive && generation === lifecycleGeneration) {
+			console.warn(LOG_PREFIX, 'Stopped monitoring the Friends window after it became unavailable.', error);
+		}
 	} finally {
-		attachingWindows.delete(context.window);
+		if (monitoringWindows.get(popupWindow) === generation) monitoringWindows.delete(popupWindow);
+		const mounted = mountedWindows.get(popupWindow);
+		if (mounted?.generation === generation) {
+			mountedWindows.delete(popupWindow);
+			disposeMountedWindow(mounted);
+		}
 	}
 }
 
 function cleanup(): void {
 	pluginActive = false;
-	for (const mounted of mountedWindows) {
-		mounted.document.documentElement.removeAttribute(OPEN_ATTRIBUTE);
-		if (mounted.closeFromFriendsTab) mounted.friendsTab?.removeEventListener('click', mounted.closeFromFriendsTab);
-		mounted.root.unmount();
-		mounted.tabHost.remove();
-		mounted.panelHost.remove();
-		mounted.document.getElementById(STYLE_ID)?.remove();
-	}
+	lifecycleGeneration += 1;
+	for (const mounted of mountedWindows.values()) disposeMountedWindow(mounted);
 	mountedWindows.clear();
 }
 
@@ -378,7 +503,8 @@ function SettingsContent() {
 
 export default definePlugin(() => {
 	pluginActive = true;
-	Millennium.AddWindowCreateHook?.((context) => void attachToFriendsWindow(context as PopupContext));
+	const generation = ++lifecycleGeneration;
+	Millennium.AddWindowCreateHook?.((context) => void monitorFriendsWindow(context as PopupContext, generation));
 
 	return {
 		title: 'Recent Chats',

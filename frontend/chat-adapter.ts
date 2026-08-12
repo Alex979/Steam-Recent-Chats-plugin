@@ -42,6 +42,15 @@ function asFiniteNumber(value: unknown): number {
 	return 0;
 }
 
+function asTimestamp(value: unknown): number {
+	const numericValue =
+		Object.prototype.toString.call(value) === '[object Date]'
+			? safely(() => (value as Date).getTime(), 0)
+			: asFiniteNumber(value);
+	if (numericValue <= 0) return 0;
+	return Math.floor(numericValue > 10_000_000_000 ? numericValue / 1000 : numericValue);
+}
+
 function stringifyId(value: unknown): string {
 	if (value === undefined || value === null) return '';
 	return safely(() => String(value), '');
@@ -96,12 +105,12 @@ function invitePreview(tagName: string, attributes: Record<string, string>, cont
 	const remotePlay = attributes.remoteplay === '1' || attributes.remoteplay?.toLocaleLowerCase() === 'true';
 
 	if (tagName === 'playtestinvite') {
-		if (!context.isDirect) return `Steam Playtest invite${forApp}`;
+		if (context.isDirect === false) return `Steam Playtest invite${forApp}`;
 		return context.isOutgoing ? `You sent a Steam Playtest invite${forApp}` : `Invited you to a Steam Playtest${playApp}`;
 	}
 
 	if (tagName === 'gameinvite' || tagName === 'lobbyinvite') {
-		if (!context.isDirect) return `${remotePlay ? 'Remote Play invite' : 'Game invite'}${forApp}`;
+		if (context.isDirect === false) return `${remotePlay ? 'Remote Play invite' : 'Game invite'}${forApp}`;
 		if (context.isOutgoing) return `You sent a ${remotePlay ? 'Remote Play' : 'game'} invite${forApp}`;
 		return remotePlay ? `Invited you to Remote Play${playApp}` : `Invited you to play${playApp}`;
 	}
@@ -115,8 +124,12 @@ export function steamMessagePreview(value: unknown, context: MessagePreviewConte
 	const invite = value.match(/\[(gameinvite|lobbyinvite|playtestinvite|invite)\b([^\]]*)\]/i);
 	if (invite) return invitePreview(invite[1].toLocaleLowerCase(), tagAttributes(invite[2]), context);
 
-	if (/\[tradeoffer\b/i.test(value)) return context.isOutgoing ? 'You sent a trade offer' : 'Sent you a trade offer';
+	if (/\[tradeoffer\b/i.test(value)) {
+		if (context.isDirect === false) return 'Trade offer';
+		return context.isOutgoing ? 'You sent a trade offer' : 'Sent you a trade offer';
+	}
 	if (/\[broadcastinvite\b/i.test(value)) {
+		if (context.isDirect === false) return 'Broadcast invite';
 		return context.isOutgoing ? 'You sent a broadcast invite' : 'Invited you to watch a broadcast';
 	}
 
@@ -133,6 +146,17 @@ function rawLastMessage(chat: UnknownRecord, loadedMessage: UnknownRecord | unde
 	return safely(
 		() => chat.GetLastMessage?.(),
 		safely(() => chat.last_message, safely(() => loadedMessage?.strMessage ?? loadedMessage?.message, '')),
+	);
+}
+
+function lastMessageTimestamp(chat: UnknownRecord, loadedMessage: UnknownRecord | undefined): number {
+	return (
+		asTimestamp(safely(() => chat.time_last_message, 0)) ||
+		asTimestamp(safely(() => chat.last_message_time, 0)) ||
+		asTimestamp(safely(() => loadedMessage?.rtTimestamp, 0)) ||
+		asTimestamp(safely(() => loadedMessage?.rtTime, 0)) ||
+		asTimestamp(safely(() => loadedMessage?.server_timestamp, 0)) ||
+		asTimestamp(safely(() => loadedMessage?.timestamp, 0))
 	);
 }
 
@@ -172,7 +196,7 @@ function directConversation(chat: UnknownRecord, store: SteamRootStore, selfAcco
 				isDirect: true,
 				isOutgoing: senderAccountId > 0 && senderAccountId === selfAccountId,
 			}) || 'No message preview',
-		timestamp: asFiniteNumber(safely(() => chat.time_last_message, 0)),
+		timestamp: lastMessageTimestamp(chat, loadedMessage),
 		unread: Math.max(0, asFiniteNumber(safely(() => chat.unread_message_count, 0))),
 		avatarUrl: safely(() => persona.avatar_url_medium, '') || safely(() => friend.avatar_url_medium, '') || undefined,
 		accountId: accountId || undefined,
@@ -197,15 +221,20 @@ function getGroupUnread(group: UnknownRecord): number {
 	return safely(() => (group.hasUnreadChatMessage ? 1 : 0), 0);
 }
 
-function groupConversation(group: UnknownRecord, selfAccountId: number): RecentConversation {
+function groupConversation(group: UnknownRecord, store: SteamRootStore, selfAccountId: number): RecentConversation {
 	const room = getGroupLastRoom(group);
 	const loadedMessage = latestLoadedMessage(room);
 	const senderAccountId = asFiniteNumber(
 		safely(() => loadedMessage?.unAccountID ?? loadedMessage?.accountid_sender ?? room.accountid_last_message, 0),
 	);
 	const sender = senderAccountId ? safely(() => group.GetMember?.(senderAccountId), undefined) : undefined;
-	const senderName = senderAccountId === selfAccountId ? 'You' : safely(() => sender?.display_name, '');
-	const message = steamMessagePreview(rawLastMessage(room, loadedMessage));
+	const isOutgoing = senderAccountId > 0 && selfAccountId > 0 && senderAccountId === selfAccountId;
+	const senderName = isOutgoing ? 'You' : safely(() => sender?.display_name, '');
+	const message = steamMessagePreview(rawLastMessage(room, loadedMessage), {
+		store,
+		isDirect: false,
+		isOutgoing,
+	});
 	const prefix = senderName && message ? `${senderName}: ` : '';
 	const groupId = safely(() => group.GetGroupID?.(), group.chat_group_id ?? group.unique_id);
 
@@ -214,9 +243,7 @@ function groupConversation(group: UnknownRecord, selfAccountId: number): RecentC
 		kind: 'group',
 		name: safely(() => group.name, '') || 'Group chat',
 		snippet: `${prefix}${message || 'No message preview'}`,
-		timestamp:
-			asFiniteNumber(safely(() => room.time_last_message, 0)) ||
-			asFiniteNumber(safely(() => group.time_last_activity, 0)),
+		timestamp: lastMessageTimestamp(room, loadedMessage) || asTimestamp(safely(() => group.time_last_activity, 0)),
 		unread: getGroupUnread(group),
 		avatarUrl: safely(() => group.avatar_url_medium, '') || undefined,
 		raw: group,
@@ -231,8 +258,10 @@ export function normalizeRecentChats(store: SteamRootStore): RecentConversation[
 
 	return rawChats
 		.filter((chat): chat is UnknownRecord => Boolean(chat && typeof chat === 'object'))
-		.map((chat) => (isDirectChat(chat) ? directConversation(chat, store, selfAccountId) : groupConversation(chat, selfAccountId)))
-		.filter((chat) => chat.timestamp > 0)
+		.map((chat) =>
+			isDirectChat(chat) ? directConversation(chat, store, selfAccountId) : groupConversation(chat, store, selfAccountId),
+		)
+		.filter((chat) => chat.timestamp > 0 || chat.unread > 0)
 		.sort((left, right) => right.timestamp - left.timestamp);
 }
 
