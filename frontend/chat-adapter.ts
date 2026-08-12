@@ -4,6 +4,7 @@ export interface SteamRootStore extends UnknownRecord {
 	ChatStore: UnknownRecord & {
 		GetRecentChats: () => unknown[];
 	};
+	AppInfoStore?: UnknownRecord;
 	FriendStore?: UnknownRecord;
 	UIStore?: UnknownRecord;
 }
@@ -58,6 +59,83 @@ export function cleanSteamText(value: unknown): string {
 		.trim();
 }
 
+interface MessagePreviewContext {
+	store?: SteamRootStore;
+	isDirect?: boolean;
+	isOutgoing?: boolean;
+}
+
+function tagAttributes(source: string): Record<string, string> {
+	const attributes: Record<string, string> = {};
+	const pattern = /([\w-]+)\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s\]]+))/g;
+	let match: RegExpExecArray | null;
+
+	while ((match = pattern.exec(source))) {
+		attributes[match[1].toLocaleLowerCase()] = match[2] ?? match[3] ?? match[4] ?? '';
+	}
+
+	return attributes;
+}
+
+function getAppName(store: SteamRootStore | undefined, appId: number): string {
+	if (!appId) return '';
+	const appInfo = safely(() => store?.AppInfoStore?.GetAppInfo?.(appId), undefined);
+	return (
+		safely(() => appInfo?.name, '') ||
+		safely(() => appInfo?.strName, '') ||
+		safely(() => appInfo?.GetName?.(), '') ||
+		''
+	);
+}
+
+function invitePreview(tagName: string, attributes: Record<string, string>, context: MessagePreviewContext): string {
+	const appId = asFiniteNumber(attributes.appid ?? attributes.app_id);
+	const appName = getAppName(context.store, appId);
+	const forApp = appName ? ` for ${appName}` : '';
+	const playApp = appName ? ` ${appName}` : '';
+	const remotePlay = attributes.remoteplay === '1' || attributes.remoteplay?.toLocaleLowerCase() === 'true';
+
+	if (tagName === 'playtestinvite') {
+		if (!context.isDirect) return `Steam Playtest invite${forApp}`;
+		return context.isOutgoing ? `You sent a Steam Playtest invite${forApp}` : `Invited you to a Steam Playtest${playApp}`;
+	}
+
+	if (tagName === 'gameinvite' || tagName === 'lobbyinvite') {
+		if (!context.isDirect) return `${remotePlay ? 'Remote Play invite' : 'Game invite'}${forApp}`;
+		if (context.isOutgoing) return `You sent a ${remotePlay ? 'Remote Play' : 'game'} invite${forApp}`;
+		return remotePlay ? `Invited you to Remote Play${playApp}` : `Invited you to play${playApp}`;
+	}
+
+	return context.isOutgoing ? 'You sent a chat invite' : 'Sent you a chat invite';
+}
+
+export function steamMessagePreview(value: unknown, context: MessagePreviewContext = {}): string {
+	if (typeof value !== 'string') return '';
+
+	const invite = value.match(/\[(gameinvite|lobbyinvite|playtestinvite|invite)\b([^\]]*)\]/i);
+	if (invite) return invitePreview(invite[1].toLocaleLowerCase(), tagAttributes(invite[2]), context);
+
+	if (/\[tradeoffer\b/i.test(value)) return context.isOutgoing ? 'You sent a trade offer' : 'Sent you a trade offer';
+	if (/\[broadcastinvite\b/i.test(value)) {
+		return context.isOutgoing ? 'You sent a broadcast invite' : 'Invited you to watch a broadcast';
+	}
+
+	return cleanSteamText(value);
+}
+
+function latestLoadedMessage(chat: UnknownRecord): UnknownRecord | undefined {
+	const messages = safely(() => chat.chat_messages, [] as UnknownRecord[]);
+	if (!Array.isArray(messages) || messages.length === 0) return undefined;
+	return messages[messages.length - 1];
+}
+
+function rawLastMessage(chat: UnknownRecord, loadedMessage: UnknownRecord | undefined): unknown {
+	return safely(
+		() => chat.GetLastMessage?.(),
+		safely(() => chat.last_message, safely(() => loadedMessage?.strMessage ?? loadedMessage?.message, '')),
+	);
+}
+
 function getDirectAccountId(chat: UnknownRecord): number {
 	return asFiniteNumber(
 		safely(
@@ -74,17 +152,26 @@ function isDirectChat(chat: UnknownRecord): boolean {
 	return getDirectAccountId(chat) > 0 || typeof safely(() => chat.GetLastMessage, undefined) === 'function';
 }
 
-function directConversation(chat: UnknownRecord): RecentConversation {
+function directConversation(chat: UnknownRecord, store: SteamRootStore, selfAccountId: number): RecentConversation {
 	const accountId = getDirectAccountId(chat);
 	const friend = safely(() => chat.chat_partner, {} as UnknownRecord);
 	const persona = safely(() => friend.persona, {} as UnknownRecord);
-	const lastMessage = safely(() => chat.GetLastMessage?.(), safely(() => chat.last_message, ''));
+	const loadedMessage = latestLoadedMessage(chat);
+	const senderAccountId = asFiniteNumber(
+		safely(() => loadedMessage?.unAccountID ?? loadedMessage?.accountid_sender ?? chat.accountid_last_message, 0),
+	);
+	const lastMessage = rawLastMessage(chat, loadedMessage);
 
 	return {
 		id: `friend:${accountId || stringifyId(chat.unique_id)}`,
 		kind: 'friend',
 		name: safely(() => friend.display_name, '') || safely(() => persona.m_strPlayerName, '') || 'Unknown friend',
-		snippet: cleanSteamText(lastMessage) || 'No message preview',
+		snippet:
+			steamMessagePreview(lastMessage, {
+				store,
+				isDirect: true,
+				isOutgoing: senderAccountId > 0 && senderAccountId === selfAccountId,
+			}) || 'No message preview',
 		timestamp: asFiniteNumber(safely(() => chat.time_last_message, 0)),
 		unread: Math.max(0, asFiniteNumber(safely(() => chat.unread_message_count, 0))),
 		avatarUrl: safely(() => persona.avatar_url_medium, '') || safely(() => friend.avatar_url_medium, '') || undefined,
@@ -112,10 +199,13 @@ function getGroupUnread(group: UnknownRecord): number {
 
 function groupConversation(group: UnknownRecord, selfAccountId: number): RecentConversation {
 	const room = getGroupLastRoom(group);
-	const senderAccountId = asFiniteNumber(safely(() => room.accountid_last_message, 0));
+	const loadedMessage = latestLoadedMessage(room);
+	const senderAccountId = asFiniteNumber(
+		safely(() => loadedMessage?.unAccountID ?? loadedMessage?.accountid_sender ?? room.accountid_last_message, 0),
+	);
 	const sender = senderAccountId ? safely(() => group.GetMember?.(senderAccountId), undefined) : undefined;
 	const senderName = senderAccountId === selfAccountId ? 'You' : safely(() => sender?.display_name, '');
-	const message = cleanSteamText(safely(() => room.GetLastMessage?.(), safely(() => room.last_message, '')));
+	const message = steamMessagePreview(rawLastMessage(room, loadedMessage));
 	const prefix = senderName && message ? `${senderName}: ` : '';
 	const groupId = safely(() => group.GetGroupID?.(), group.chat_group_id ?? group.unique_id);
 
@@ -141,7 +231,7 @@ export function normalizeRecentChats(store: SteamRootStore): RecentConversation[
 
 	return rawChats
 		.filter((chat): chat is UnknownRecord => Boolean(chat && typeof chat === 'object'))
-		.map((chat) => (isDirectChat(chat) ? directConversation(chat) : groupConversation(chat, selfAccountId)))
+		.map((chat) => (isDirectChat(chat) ? directConversation(chat, store, selfAccountId) : groupConversation(chat, selfAccountId)))
 		.filter((chat) => chat.timestamp > 0)
 		.sort((left, right) => right.timestamp - left.timestamp);
 }

@@ -14,9 +14,9 @@
         "@types/react-dom": "19.1.1"
     },
     "type": "module",
-    "name": "recent-chats-poc",
-    "version": "0.1.3",
-    "description": "A proof-of-concept recent chats plugin for Millennium",
+    "name": "recent-chats",
+    "version": "0.2.0",
+    "description": "A recent-conversations view for Steam Friends & Chat",
     "main": "./frontend/index.jsx",
     "author": "Alex Broaddus",
     "license": "MIT"

@@ -5,7 +5,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { normalizeRecentChats, RecentConversation, SteamRootStore, steamId64FromAccountId } from './chat-adapter';
 import { FRIENDS_WINDOW_STYLES } from './styles';
 
-const LOG_PREFIX = '[Recent Chats PoC]';
+const LOG_PREFIX = '[Recent Chats]';
 const FRIENDS_POPUP_NAME = 'friendslist_uid0';
 const TAB_HOST_ID = 'recent-chats-poc-tab-host';
 const PANEL_HOST_ID = 'recent-chats-poc-panel-host';
@@ -206,10 +206,7 @@ function RecentChatsPanel({ document, popupWindow }: RecentChatsAppProps) {
 					↻
 				</button>
 			</div>
-			<div className="rcp-status">
-				<span className={`rcp-status-dot${error ? ' rcp-error' : ''}`} />
-				{error ?? `Live Steam ChatStore · ${conversations.length} conversation${conversations.length === 1 ? '' : 's'}`}
-			</div>
+			{error && <div className="rcp-error-banner">Recent chats are temporarily unavailable. Try refreshing.</div>}
 			<div className="rcp-list">
 				{filteredConversations.map((conversation) => (
 					<button
@@ -232,7 +229,7 @@ function RecentChatsPanel({ document, popupWindow }: RecentChatsAppProps) {
 				{filteredConversations.length === 0 && (
 					<div className="rcp-empty">
 						{error
-							? 'Open Steam’s developer console and search for “Recent Chats PoC” for diagnostics.'
+							? 'Steam’s chat data could not be read on this build.'
 							: query
 								? 'No recent conversations match that search.'
 								: 'Steam did not return any recent conversations. Try opening a chat once, then refresh.'}
@@ -314,10 +311,13 @@ async function attachToFriendsWindow(context: PopupContext): Promise<void> {
 		const tabButton = document.createElement('button');
 		tabButton.className = 'rcp-tab-button';
 		tabButton.type = 'button';
-		tabButton.textContent = 'Chats';
 		tabButton.setAttribute('role', 'tab');
 		tabButton.setAttribute('aria-selected', 'false');
 		tabButton.setAttribute('aria-controls', PANEL_HOST_ID);
+		const tabLabel = document.createElement('span');
+		tabLabel.className = 'tabLabel';
+		tabLabel.textContent = 'Chats';
+		tabButton.append(tabLabel);
 		tabHost.append(tabButton);
 
 		const panelHost = document.createElement('div');
@@ -370,7 +370,7 @@ function cleanup(): void {
 function SettingsContent() {
 	return (
 		<div style={{ padding: '12px 16px', lineHeight: 1.45 }}>
-			<p>This proof of concept adds a Chats tab to Steam’s desktop Friends window.</p>
+			<p>Adds a recent-conversations tab to Steam’s desktop Friends window.</p>
 			<p>It reads Steam’s in-memory recent-chat store and never acknowledges, sends, deletes, or archives messages.</p>
 		</div>
 	);
@@ -381,7 +381,7 @@ export default definePlugin(() => {
 	Millennium.AddWindowCreateHook?.((context) => void attachToFriendsWindow(context as PopupContext));
 
 	return {
-		title: 'Recent Chats (PoC)',
+		title: 'Recent Chats',
 		icon: <span aria-hidden="true">💬</span>,
 		content: <SettingsContent />,
 		onDismount: cleanup,
