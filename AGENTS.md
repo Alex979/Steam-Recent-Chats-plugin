@@ -32,3 +32,5 @@ recent-chats/
   README.md
   LICENSE
 ```
+
+Run `bun run release` to verify the synchronized manifest versions, install locked dependencies, run all checks, build, and create that archive without overwriting an existing zip.

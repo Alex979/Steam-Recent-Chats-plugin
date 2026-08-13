@@ -46,4 +46,13 @@ bun test
 bun run build
 ```
 
+Create a verified, versioned release archive on Windows, macOS, or Linux:
+
+```powershell
+bun run release
+```
+
+The release command installs the locked dependencies, runs all checks, builds the plugin, and creates
+`recent-chats-<version>.zip`. It will not overwrite an existing archive.
+
 Useful console messages are prefixed with `[Recent Chats]`.
