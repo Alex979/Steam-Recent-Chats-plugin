@@ -1,11 +1,11 @@
 # Recent Chats
 
-Recent Chats is a Millennium plugin that adds a newest-first conversation list to Steam's desktop Friends window. It should feel native to Steam, preserve unread state, and never persist message content or extract credentials.
+Recent Chats is a Millennium plugin that adds a newest-first conversation list to Steam's desktop and in-game overlay Friends windows. It should feel native to Steam, preserve unread state, and never persist message content or extract credentials.
 
 ## Important context
 
 - Valve exposes no supported Friends UI or conversation-list extension API. The plugin structurally discovers Steam's private `ChatStore`, so Steam updates can break compatibility.
-- Target only the `friendslist_uid0` popup. Steam replaces its document during startup; always follow the current `context.window.document` and wait for the Friends anchors.
+- Target only `friendslist_uid<process-id>` popups: `uid0` is the desktop window and a nonzero ID is an in-game overlay. Steam replaces popup documents during startup; always follow the current `context.window.document` and wait for the Friends anchors.
 - Keep the tab's click handling in the popup's native DOM. Cross-window React event handlers did not fire reliably.
 - Steam represents invites as BBCode such as `gameinvite` and `lobbyinvite`. Parse special message types before generic BBCode cleanup.
 - Base visual changes on Steam's desktop Friends styles, not its Gamepad/Big Picture components.
@@ -19,7 +19,7 @@ bun test
 bun run build
 ```
 
-For UI changes, also test both tabs in Steam and confirm conversation rows still open the correct chat.
+For UI changes, test both tabs in the desktop and Shift+Tab Friends windows, and confirm conversation rows open chats in the originating context.
 
 ## Package
 

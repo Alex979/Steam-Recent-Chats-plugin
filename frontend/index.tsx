@@ -2,11 +2,12 @@ import { findModuleExport, getReactInstance, Millennium, modules, definePlugin }
 import { createRoot, Root } from 'react-dom/client';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
-import { normalizeRecentChats, RecentConversation, SteamRootStore, steamId64FromAccountId } from './chat-adapter';
+import { openConversation } from './chat-actions';
+import { normalizeRecentChats, RecentConversation, SteamRootStore } from './chat-adapter';
+import { classifyFriendsWindow, FriendsWindowTarget } from './friends-window';
 import { FRIENDS_WINDOW_STYLES } from './styles';
 
 const LOG_PREFIX = '[Recent Chats]';
-const FRIENDS_POPUP_NAME = 'friendslist_uid0';
 const TAB_HOST_ID = 'recent-chats-poc-tab-host';
 const PANEL_HOST_ID = 'recent-chats-poc-panel-host';
 const STYLE_ID = 'recent-chats-poc-styles';
@@ -20,6 +21,7 @@ const STORE_DISCOVERY_MAX_DELAY_MS = 30_000;
 interface PopupContext {
 	m_strName?: string;
 	window?: Window;
+	browser_info?: unknown;
 }
 
 interface MountedWindow {
@@ -131,44 +133,6 @@ function getPopupMutationObserver(popupWindow: Window): typeof MutationObserver 
 	return (popupWindow as Window & { MutationObserver?: typeof MutationObserver }).MutationObserver ?? MutationObserver;
 }
 
-function openConversation(store: SteamRootStore, conversation: RecentConversation, popupWindow: Window): void {
-	const steamClient = (globalThis as any).SteamClient;
-
-	try {
-		if (conversation.kind === 'friend' && conversation.accountId) {
-			const steamId64 = steamId64FromAccountId(conversation.accountId);
-			if (steamId64 && typeof steamClient?.WebChat?.ShowFriendChatDialog === 'function') {
-				steamClient.WebChat.ShowFriendChatDialog(steamId64);
-				return;
-			}
-
-			if (typeof store.UIStore?.ShowFriendChatDialog === 'function') {
-				store.UIStore.ShowFriendChatDialog(popupWindow, conversation.accountId);
-				return;
-			}
-		}
-
-		if (conversation.kind === 'group') {
-			if (typeof store.UIStore?.ShowAndOrActivateChatRoomGroup === 'function') {
-				store.UIStore.ShowAndOrActivateChatRoomGroup(popupWindow, conversation.raw, true);
-				return;
-			}
-
-			const groupId = conversation.raw.GetGroupID?.();
-			const chatId = conversation.raw.GetDefaultChatID?.();
-			if (typeof steamClient?.WebChat?.ShowChatRoomGroupDialog === 'function' && groupId !== undefined && chatId !== undefined) {
-				steamClient.WebChat.ShowChatRoomGroupDialog(groupId, chatId);
-				return;
-			}
-		}
-	} catch (error) {
-		console.error(LOG_PREFIX, 'Failed to open conversation.', error);
-		return;
-	}
-
-	console.warn(LOG_PREFIX, 'No compatible chat-opening method was found.', conversation);
-}
-
 function ConversationAvatar({ conversation }: { conversation: RecentConversation }) {
 	const [failed, setFailed] = useState(false);
 	if (!conversation.avatarUrl || failed) {
@@ -181,9 +145,10 @@ function ConversationAvatar({ conversation }: { conversation: RecentConversation
 interface RecentChatsAppProps {
 	document: Document;
 	popupWindow: Window;
+	browserContext?: unknown;
 }
 
-function RecentChatsPanel({ document, popupWindow }: RecentChatsAppProps) {
+function RecentChatsPanel({ document, popupWindow, browserContext }: RecentChatsAppProps) {
 	const [query, setQuery] = useState('');
 	const [store, setStore] = useState<SteamRootStore>();
 	const [conversations, setConversations] = useState<RecentConversation[]>([]);
@@ -283,7 +248,7 @@ function RecentChatsPanel({ document, popupWindow }: RecentChatsAppProps) {
 						className="rcp-row"
 						type="button"
 						key={conversation.id}
-						onClick={() => store && openConversation(store, conversation, popupWindow)}
+						onClick={() => store && openConversation(store, conversation, popupWindow, browserContext)}
 					>
 						<ConversationAvatar conversation={conversation} />
 						<span className="rcp-copy">
@@ -387,7 +352,13 @@ function removeOrphanedInjection(document: Document): void {
 	document.getElementById(STYLE_ID)?.remove();
 }
 
-function mountFriendsDocument(popupWindow: Window, anchors: FriendsAnchors, generation: number): MountedWindow {
+function mountFriendsDocument(
+	popupWindow: Window,
+	anchors: FriendsAnchors,
+	generation: number,
+	target: FriendsWindowTarget,
+	browserContext?: unknown,
+): MountedWindow {
 	const { document, header, content, contentIsFallback } = anchors;
 	const contentParent = content.parentElement;
 	if (!contentParent) throw new Error('Friends content has no parent element');
@@ -441,8 +412,13 @@ function mountFriendsDocument(popupWindow: Window, anchors: FriendsAnchors, gene
 	header.addEventListener('click', closeFromNativeHeader);
 
 	const root = createRoot(panelHost);
-	root.render(<RecentChatsPanel document={document} popupWindow={popupWindow} />);
-	console.info(LOG_PREFIX, 'Attached to', FRIENDS_POPUP_NAME, `using ${contentIsFallback ? 'fallback' : 'primary'} anchors`);
+	root.render(<RecentChatsPanel document={document} popupWindow={popupWindow} browserContext={browserContext} />);
+	console.info(
+		LOG_PREFIX,
+		'Attached to',
+		target.name,
+		`(${target.kind}) using ${contentIsFallback ? 'fallback' : 'primary'} anchors`,
+	);
 
 	return { generation, popupWindow, document, root, tabHost, panelHost, header, closeFromNativeHeader };
 }
@@ -491,7 +467,9 @@ function mountIsCurrent(mounted: MountedWindow, document: Document | undefined):
 }
 
 async function monitorFriendsWindow(context: PopupContext, generation: number): Promise<void> {
-	if (!pluginActive || context.m_strName !== FRIENDS_POPUP_NAME || !context.window) return;
+	if (!pluginActive || !context.window) return;
+	const target = classifyFriendsWindow(context.m_strName);
+	if (!target) return;
 	const popupWindow = context.window;
 	if (monitoringWindows.get(popupWindow) === generation) return;
 	monitoringWindows.set(popupWindow, generation);
@@ -516,7 +494,10 @@ async function monitorFriendsWindow(context: PopupContext, generation: number): 
 				let attachmentFailed = false;
 				if (anchors && currentPopupDocument(popupWindow) === document && !mountedWindows.has(popupWindow)) {
 					try {
-						mountedWindows.set(popupWindow, mountFriendsDocument(popupWindow, anchors, generation));
+						mountedWindows.set(
+							popupWindow,
+							mountFriendsDocument(popupWindow, anchors, generation, target, context.browser_info),
+						);
 					} catch (error) {
 						attachmentFailed = true;
 						console.error(LOG_PREFIX, 'Could not attach to the Friends window.', error);
@@ -552,7 +533,7 @@ function cleanup(): void {
 function SettingsContent() {
 	return (
 		<div style={{ padding: '12px 16px', lineHeight: 1.45 }}>
-			<p>Adds a recent-conversations tab to Steam’s desktop Friends window.</p>
+			<p>Adds a recent-conversations tab to Steam’s desktop and in-game overlay Friends windows.</p>
 			<p>It reads Steam’s in-memory recent-chat store and never acknowledges, sends, deletes, or archives messages.</p>
 		</div>
 	);
