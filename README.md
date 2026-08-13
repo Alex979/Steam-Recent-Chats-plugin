@@ -2,6 +2,8 @@
 
 Recent Chats adds a **Chats** tab to Steam's desktop Friends window. It reads Steam's own in-memory recent-chat model and displays direct and group conversations newest-first.
 
+<img width="404" height="465" alt="recent-chat-plugin-screenshot" src="https://github.com/user-attachments/assets/dce6df2c-fecb-496b-9112-867b9d6c969d" />
+
 ## Features
 
 - Sorts conversations by their latest activity.
