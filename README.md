@@ -1,6 +1,6 @@
-# Recent Chats for Millennium
+# Recent Chats
 
-Recent Chats adds a **Chats** tab to Steam's desktop Friends window. It reads Steam's own in-memory recent-chat model and displays direct and group conversations newest-first.
+A Millenniuim plugin that adds a **Chats** tab to Steam's desktop Friends window. No more searching through your friends list to find that invite you missed or continue an old thread. Easily see all your latest invites and messages in one dedicated window.
 
 <img width="404" height="465" alt="recent-chat-plugin-screenshot" src="https://github.com/user-attachments/assets/dce6df2c-fecb-496b-9112-867b9d6c969d" />
 
@@ -15,10 +15,12 @@ Recent Chats adds a **Chats** tab to Steam's desktop Friends window. It reads St
 ## Install
 
 1. Install [Millennium for Steam](https://steambrew.app/).
-2. Extract the release archive into `<Steam install>\millennium\plugins`.
-3. Confirm the resulting folder is `<Steam install>\millennium\plugins\recent-chats`.
-4. Restart Steam and enable **Recent Chats** in Millennium's plugin settings.
-5. Open **Friends & Chat**, then select **Chats**.
+2. Download the [latest release](https://github.com/Alex979/Steam-Recent-Chats-plugin/releases) for this plugin
+3. Extract the release archive into `<Steam install>\millennium\plugins`.
+4. Confirm the resulting folder is `<Steam install>\millennium\plugins\recent-chats`.
+5. Restart Steam and enable **Recent Chats** in Millennium's plugin settings (`Steam -> Millennium -> Plugins`).
+6. Click **Save Changes** at the top of the menu and **restart Steam** one more time.
+7. Open **Friends & Chat**, then select **Chats**.
 
 On a typical Windows installation, the final path is:
 
