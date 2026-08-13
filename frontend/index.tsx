@@ -12,6 +12,8 @@ const PANEL_HOST_ID = 'recent-chats-poc-panel-host';
 const STYLE_ID = 'recent-chats-poc-styles';
 const OPEN_ATTRIBUTE = 'data-recent-chats-poc-open';
 const DOCUMENT_RECONCILE_INTERVAL_MS = 500;
+const STARTUP_RECONCILE_INTERVAL_MS = 50;
+const STARTUP_RECONCILE_DURATION_MS = 5_000;
 const CHAT_REFRESH_INTERVAL_MS = 2_000;
 const STORE_DISCOVERY_MAX_DELAY_MS = 30_000;
 
@@ -125,6 +127,10 @@ function sameConversations(left: RecentConversation[], right: RecentConversation
 	});
 }
 
+function getPopupMutationObserver(popupWindow: Window): typeof MutationObserver {
+	return (popupWindow as Window & { MutationObserver?: typeof MutationObserver }).MutationObserver ?? MutationObserver;
+}
+
 function openConversation(store: SteamRootStore, conversation: RecentConversation, popupWindow: Window): void {
 	const steamClient = (globalThis as any).SteamClient;
 
@@ -209,9 +215,8 @@ function RecentChatsPanel({ document, popupWindow }: RecentChatsAppProps) {
 
 	useEffect(() => {
 		const syncOpenState = () => setIsOpen(document.documentElement.hasAttribute(OPEN_ATTRIBUTE));
-		const PopupMutationObserver = (popupWindow as Window & { MutationObserver?: typeof MutationObserver })
-			.MutationObserver;
-		const observer = new (PopupMutationObserver ?? MutationObserver)(syncOpenState);
+		const PopupMutationObserver = getPopupMutationObserver(popupWindow);
+		const observer = new PopupMutationObserver(syncOpenState);
 		observer.observe(document.documentElement, { attributes: true, attributeFilter: [OPEN_ATTRIBUTE] });
 		syncOpenState();
 		return () => observer.disconnect();
@@ -332,6 +337,49 @@ function findFriendsAnchors(document: Document): FriendsAnchors | undefined {
 	return { document, header, content, contentIsFallback: !primaryContent };
 }
 
+function waitForFriendsAnchors(
+	document: Document,
+	popupWindow: Window,
+	timeoutMs: number,
+): Promise<FriendsAnchors | undefined> {
+	const initialAnchors = findFriendsAnchors(document);
+	if (initialAnchors) return Promise.resolve(initialAnchors);
+
+	return new Promise((resolve) => {
+		let settled = false;
+		let timeout: ReturnType<typeof setTimeout> | undefined;
+		let observer: MutationObserver | undefined;
+
+		const finish = (anchors: FriendsAnchors | undefined) => {
+			if (settled) return;
+			settled = true;
+			observer?.disconnect();
+			if (timeout !== undefined) clearTimeout(timeout);
+			resolve(anchors);
+		};
+
+		try {
+			const PopupMutationObserver = getPopupMutationObserver(popupWindow);
+			observer = new PopupMutationObserver(() => {
+				try {
+					const anchors = findFriendsAnchors(document);
+					if (anchors) finish(anchors);
+				} catch {
+					finish(undefined);
+				}
+			});
+			observer.observe(document, { childList: true, subtree: true });
+			timeout = setTimeout(() => finish(undefined), timeoutMs);
+
+			// Close the small race between the first query and observer registration.
+			const anchorsAfterObserve = findFriendsAnchors(document);
+			if (anchorsAfterObserve) finish(anchorsAfterObserve);
+		} catch {
+			finish(undefined);
+		}
+	});
+}
+
 function removeOrphanedInjection(document: Document): void {
 	document.documentElement.removeAttribute(OPEN_ATTRIBUTE);
 	document.getElementById(TAB_HOST_ID)?.remove();
@@ -447,29 +495,38 @@ async function monitorFriendsWindow(context: PopupContext, generation: number): 
 	const popupWindow = context.window;
 	if (monitoringWindows.get(popupWindow) === generation) return;
 	monitoringWindows.set(popupWindow, generation);
+	let fastReconcileUntil = Date.now() + STARTUP_RECONCILE_DURATION_MS;
 
 	try {
 		while (pluginActive && generation === lifecycleGeneration && !popupIsClosed(popupWindow)) {
 			const document = currentPopupDocument(popupWindow);
 			const mounted = mountedWindows.get(popupWindow);
+			const reconcileInterval =
+				Date.now() < fastReconcileUntil ? STARTUP_RECONCILE_INTERVAL_MS : DOCUMENT_RECONCILE_INTERVAL_MS;
 
 			if (mounted && !mountIsCurrent(mounted, document)) {
 				mountedWindows.delete(popupWindow);
 				disposeMountedWindow(mounted);
+				fastReconcileUntil = Date.now() + STARTUP_RECONCILE_DURATION_MS;
 			}
 
 			if (document && !mountedWindows.has(popupWindow)) {
-				const anchors = findFriendsAnchors(document);
-				if (anchors) {
+				const anchors = await waitForFriendsAnchors(document, popupWindow, reconcileInterval);
+				if (!pluginActive || generation !== lifecycleGeneration) break;
+				let attachmentFailed = false;
+				if (anchors && currentPopupDocument(popupWindow) === document && !mountedWindows.has(popupWindow)) {
 					try {
 						mountedWindows.set(popupWindow, mountFriendsDocument(popupWindow, anchors, generation));
 					} catch (error) {
+						attachmentFailed = true;
 						console.error(LOG_PREFIX, 'Could not attach to the Friends window.', error);
 					}
 				}
+				if (attachmentFailed) await delay(reconcileInterval);
+				continue;
 			}
 
-			await delay(DOCUMENT_RECONCILE_INTERVAL_MS);
+			await delay(reconcileInterval);
 		}
 	} catch (error) {
 		if (pluginActive && generation === lifecycleGeneration) {
