@@ -530,15 +530,6 @@ function cleanup(): void {
 	mountedWindows.clear();
 }
 
-function SettingsContent() {
-	return (
-		<div style={{ padding: '12px 16px', lineHeight: 1.45 }}>
-			<p>Adds a recent-conversations tab to Steam’s desktop and in-game overlay Friends windows.</p>
-			<p>It reads Steam’s in-memory recent-chat store and never acknowledges, sends, deletes, or archives messages.</p>
-		</div>
-	);
-}
-
 export default definePlugin(() => {
 	pluginActive = true;
 	const generation = ++lifecycleGeneration;
@@ -547,7 +538,6 @@ export default definePlugin(() => {
 	return {
 		title: 'Recent Chats',
 		icon: <span aria-hidden="true">💬</span>,
-		content: <SettingsContent />,
 		onDismount: cleanup,
 	};
 });
