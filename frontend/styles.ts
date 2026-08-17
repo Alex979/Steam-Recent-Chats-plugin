@@ -3,7 +3,9 @@ export const FRIENDS_WINDOW_STYLES = `
  * tab so Valve and theme rules size both identically. Symmetric inline padding
  * keeps the label centered whatever start padding a theme sets. */
 #recent-chats-poc-tab-host {
-	box-sizing: border-box;
+	/* content-box like the native tab: a theme's vertical padding must add to
+	 * the shared 30px height on both tabs equally. */
+	box-sizing: content-box;
 	cursor: pointer;
 	flex-grow: 0;
 	margin-inline-start: auto;
@@ -37,7 +39,12 @@ export const FRIENDS_WINDOW_STYLES = `
 	opacity: 0.32;
 }
 
+/* Single-tab theme designs blank native tab labels (opacity 0 !important on
+ * .socialListTab .tabLabel) because FRIENDS alone is redundant — but our
+ * label is the only thing identifying the Chats tab. The ID out-specifies
+ * the theme rule; every other inherited theme style still applies. */
 #recent-chats-poc-tab-host .tabLabel {
+	opacity: 1 !important;
 	position: relative;
 	z-index: 1;
 }
@@ -75,16 +82,21 @@ html[data-recent-chats-poc-open] #recent-chats-poc-panel-host.rcp-content-fallba
 }
 
 /* Steam has no always-open desktop search-toolbar class without growth/state
- * side effects; a translucent neutral background blends with any theme. */
+ * side effects; default Steam gets the original toolbar strip, while a
+ * Millennium theme gets a translucent neutral that blends with its palette. */
 .rcp-toolbar {
 	align-items: center;
-	background: rgba(0, 0, 0, 0.2);
+	background: #282d33;
 	box-shadow: 0 2px 4px rgba(0, 0, 0, 0.22);
 	display: flex;
 	flex: 0 0 auto;
 	gap: 6px;
 	padding: 6px 8px;
 	z-index: 1;
+}
+
+html.rcp-themed .rcp-toolbar {
+	background: rgba(0, 0, 0, 0.2);
 }
 
 .rcp-search-form,
@@ -94,7 +106,12 @@ html[data-recent-chats-poc-open] #recent-chats-poc-panel-host.rcp-content-fallba
 	min-width: 0;
 }
 
+/* Neutralize MemberListOptionsContainer's bar geometry (42px height,
+ * flex-end): the class is only worn for its placeholder rules. */
 .rcp-search-form {
+	box-sizing: border-box;
+	height: auto;
+	justify-content: flex-start;
 	margin: 0;
 }
 
@@ -110,6 +127,16 @@ html[data-recent-chats-poc-open] #recent-chats-poc-panel-host.rcp-content-fallba
 	min-width: 0;
 	padding-inline-end: 25px;
 }
+
+/* Valve hardcodes the field colors; themes cannot reach a standalone search
+ * input, so under a Millennium theme (html.rcp-themed, detected from injected
+ * theme stylesheets) neutral translucents adapt it while Valve keeps the
+ * icon/shape. Default Steam keeps Valve's own field colors. */
+html.rcp-themed .rcp-toolbar .rcp-search.friendSearchInput {
+	background-color: rgba(0, 0, 0, 0.25);
+	color: inherit;
+}
+
 
 /* Steam renders friendSearchClear as a div; reset the accessible button wrapper. */
 .rcp-search-clear {
@@ -164,14 +191,23 @@ html[data-recent-chats-poc-open] #recent-chats-poc-panel-host.rcp-content-fallba
 	padding: 5px 10px;
 }
 
-/* A stable gutter keeps themes that drop the container's scrollbar-side
- * padding (matching the native list) from rendering our rows flush-right. */
+/* The rows card scrolls, not the themed container: themes drop the
+ * container's scrollbar-side padding when it owns a scrollbar (matching the
+ * native list), which pushed our card flush against the right edge. */
 .rcp-list {
+	display: flex;
 	flex: 1 1 auto;
+	flex-direction: column;
+	min-height: 0;
+	overflow: hidden;
+}
+
+.rcp-list-content {
+	box-sizing: border-box;
+	flex: 0 1 auto;
 	min-height: 0;
 	overflow-x: hidden;
 	overflow-y: auto;
-	scrollbar-gutter: stable;
 }
 
 .rcp-list-content,
@@ -181,6 +217,8 @@ html[data-recent-chats-poc-open] #recent-chats-poc-panel-host.rcp-content-fallba
 }
 
 /* Native rows are 38px; Recent Chats owns its 58px three-column geometry. */
+/* No explicit width: the row auto-stretches so theme row margins (e.g.
+ * floating-row designs) inset it instead of pushing it past the card edge. */
 .friendGroup .rcp-row {
 	-webkit-app-region: no-drag;
 	align-items: center;
@@ -195,7 +233,6 @@ html[data-recent-chats-poc-open] #recent-chats-poc-panel-host.rcp-content-fallba
 	min-height: 58px;
 	padding: 7px 9px;
 	text-align: left;
-	width: 100%;
 }
 
 .rcp-row:focus-visible {

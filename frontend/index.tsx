@@ -277,7 +277,10 @@ function RecentChatsPanel({ document, popupWindow, browserContext }: RecentChats
 	return (
 		<div className="rcp-panel FriendsListContent">
 			<div className="rcp-toolbar">
-				<form className="rcp-search-form" onSubmit={(event) => event.preventDefault()}>
+				{/* MemberListOptionsContainer: ancestor context for Valve's
+				    brighter always-visible-search placeholder rules; its own
+				    bar geometry is neutralized in .rcp-search-form. */}
+				<form className="rcp-search-form MemberListOptionsContainer" onSubmit={(event) => event.preventDefault()}>
 					<div className="rcp-search-container inputContainer">
 						<input
 							className="rcp-search friendSearchInput"
@@ -327,7 +330,9 @@ function RecentChatsPanel({ document, popupWindow, browserContext }: RecentChats
 								}}
 							>
 								<ConversationAvatar conversation={conversation} />
-								<span className="rcp-copy labelHolder">
+								{/* No labelHolder class: themes size that hook for native rows
+								    (e.g. width:10px hacks) and would collapse our two-line copy. */}
+								<span className="rcp-copy">
 									<span className="rcp-name">{conversation.name}</span>
 									<span
 										className="rcp-snippet status"
@@ -436,8 +441,28 @@ function waitForFriendsAnchors(
 	});
 }
 
+const THEMED_CLASS = 'rcp-themed';
+
+// Millennium injects active-theme stylesheets from its own origin; their
+// presence distinguishes a themed client from default Steam.
+function updateThemeDetection(document: Document): void {
+	let themed = false;
+	try {
+		for (const sheet of Array.from(document.styleSheets)) {
+			if (/millennium|\/skins\//i.test(sheet.href ?? '')) {
+				themed = true;
+				break;
+			}
+		}
+	} catch {
+		themed = false;
+	}
+	document.documentElement.classList.toggle(THEMED_CLASS, themed);
+}
+
 function removeOrphanedInjection(document: Document): void {
 	document.documentElement.removeAttribute(OPEN_ATTRIBUTE);
+	document.documentElement.classList.remove(THEMED_CLASS);
 	document.getElementById(TAB_HOST_ID)?.remove();
 	document.getElementById(PANEL_HOST_ID)?.remove();
 	document.getElementById(STYLE_ID)?.remove();
@@ -456,6 +481,7 @@ function mountFriendsDocument(
 
 	removeOrphanedInjection(document);
 	ensureStyle(document);
+	updateThemeDetection(document);
 
 	// The tab is its own host element and mounts as a direct sibling of the
 	// native tab: wrapper divs change the flex context, so theme rules sized
@@ -486,6 +512,8 @@ function mountFriendsDocument(
 	contentParent.insertBefore(panelHost, content);
 
 	const setOpen = (open: boolean) => {
+		// Re-check on each toggle: theme stylesheets can inject after mount.
+		updateThemeDetection(document);
 		const wasOpen = document.documentElement.hasAttribute(OPEN_ATTRIBUTE);
 		if (open) document.documentElement.setAttribute(OPEN_ATTRIBUTE, 'true');
 		else document.documentElement.removeAttribute(OPEN_ATTRIBUTE);
@@ -535,6 +563,7 @@ function cleanupStep(description: string, action: () => void): void {
 
 function disposeMountedWindow(mounted: MountedWindow): void {
 	cleanupStep('clear the open state', () => mounted.document.documentElement.removeAttribute(OPEN_ATTRIBUTE));
+	cleanupStep('clear the theme marker', () => mounted.document.documentElement.classList.remove(THEMED_CLASS));
 	cleanupStep('remove the native-header listener', () =>
 		mounted.header.removeEventListener('click', mounted.closeFromNativeHeader),
 	);
