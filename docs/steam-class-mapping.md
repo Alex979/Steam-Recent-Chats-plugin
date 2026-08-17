@@ -20,7 +20,7 @@ div#recent-chats-poc-tab-host.friendTab.socialListTab.rcp-tab-button[.activeTab]
 
 div.rcp-panel.FriendsListContent
   div.rcp-toolbar
-    form.rcp-search-form
+    form.rcp-search-form.MemberListOptionsContainer
       div.rcp-search-container.inputContainer
         input.rcp-search.friendSearchInput[type=text]
         button.rcp-search-clear.friendSearchClear
@@ -31,7 +31,7 @@ div.rcp-panel.FriendsListContent
         div.rcp-row.friend.friendStatusHover.online
           span.rcp-avatar-holder.avatarHolder
             img.rcp-avatar.avatar
-          span.rcp-copy.labelHolder
+          span.rcp-copy
             span.rcp-name
             span.rcp-snippet.status
           span.rcp-meta
@@ -51,7 +51,9 @@ The tab's native classes are copied from the live sibling. The diagram shows the
 | `tabLabel` | `.socialListTab .tabLabel` | Opacity and the label transition. |
 | `friendTab` | No rule in Valve's stylesheet | Deliberate exception: it is a native markup and Millennium-theme hook. It is copied from the live sibling even though Valve does not style it directly. |
 
-The tab element is itself the host (`#recent-chats-poc-tab-host`) and mounts as a direct sibling of the native tab: a wrapper div changes the flex context, which let themes size the injected tab differently from the native one. Its inline padding is symmetric (`padding-inline`) so the label stays centered under any theme's start padding.
+The tab element is itself the host (`#recent-chats-poc-tab-host`) and mounts as a direct sibling of the native tab: a wrapper div changes the flex context, which let themes size the injected tab differently from the native one. Its inline padding is symmetric (`padding-inline`) so the label stays centered under any theme's start padding, and it is explicitly `box-sizing: content-box` to match the native tab — a theme's vertical padding must add to the shared 30px height on both tabs equally.
+
+The label carries `opacity: 1 !important` at ID specificity: single-tab theme designs blank all native tab labels (`.socialListTab .tabLabel { opacity: 0 !important }`) because a lone FRIENDS label is redundant, but the label is the only thing identifying the Chats tab. Every other inherited theme style still applies to it.
 
 `copyNativeTabClassName` removes `activeTab` and every search-state token, then preserves the sibling's remaining tokens. Extra copied tokens may be supplied only by a Millennium theme; copying the live sibling preserves the exact native context even when Valve's base stylesheet has no corresponding rule. `rcp-tab-button` is always appended so the native-tab suppression rule can exclude the injected tab:
 
@@ -75,10 +77,11 @@ Valve defines no desktop `.socialListTab:hover` rule and sets the base cursor to
 | `friendSearchClear` | `.friendSearchClear` | Absolute end positioning, `28px` by `26px` geometry, flex display, cursor, z-index, and opacity/transform transitions. |
 | `friendSearchClear` | `.friendSearchClear:hover` | Full hover opacity once the plugin has enabled pointer events. |
 | `friendListButton` | `.friendListButton`; `.friendListButton:last-child:not(.addFriendButton)` | `24px` square geometry, contained/no-repeat background setup, and native header-button margins. |
+| `MemberListOptionsContainer` (on the form) | `.MemberListOptionsContainer .friendSearchInput::placeholder`; its `:hover/:focus` variant | Valve's brighter always-visible-search placeholder (`rgba(90,92,97,.7)`, hover `#686a70`) instead of the near-invisible header-search placeholder. The class's own bar geometry (`height:42px`, `justify-content:flex-end`) is neutralized on `.rcp-search-form`; its other rules target descendants Recent Chats does not render. |
 
 Steam normally reveals the clear control through `.SearchActive .friendSearchClear`, but Recent Chats has no collapsible search state. Plugin CSS therefore owns enabled/disabled opacity and pointer events. It also resets the accessible clear and refresh `<button>` elements because Steam renders these controls without browser button chrome and the native rules do not perform a button reset.
 
-The toolbar itself is plugin-owned. No native always-open toolbar fits this DOM without side effects.
+The toolbar itself is plugin-owned. No native always-open toolbar fits this DOM without side effects. Its background (and the field colors) are the one deliberate dual treatment: default Steam keeps the original strip and Valve field colors, while `html.rcp-themed` switches both to translucent neutrals — see "Millennium theme adaptation" below.
 
 ## List, rows, and text
 
@@ -90,12 +93,11 @@ The toolbar itself is plugin-owned. No native always-open toolbar fits this DOM 
 | `friend` | `.friendGroup .friend` — requires the `friendGroup` ancestor | Native 38px height, margins, padding, and row direction. Recent Chats overrides only this geometry with an equal-specificity 58px grid rule. |
 | `online` | `.friend.online` | Online color `#6dcff6`, inherited where a child has no more specific color. |
 | `friendStatusHover` + `online` | `.friendStatusHover.online:hover,.friendStatusHover.online.Friend_ContextMenuActive` | Native online-row hover background `rgba(36,52,64,.3)`. |
-| `labelHolder` | `.friend .labelHolder` — requires the `friend` ancestor | Growth, vertical alignment, `min-width:0`, and transitions. The native 28px height and 6px start margin are neutralized for the plugin's two-line grid and 8px grid gap. |
 | `status` | `.currentUserContainer.online .status,.friend.online .status` — the second selector matches | Darker online detail color `#4c91ac` for the message snippet. |
 
 Steam supplies no validated literal desktop rule for the near-white name treatment or the desired two-line typography. `.rcp-name` therefore owns its color, size, weight, and line height; `.rcp-snippet` owns only typography while `status` supplies its native/theme color.
 
-The `friendGroup` ancestor is intentional, but Steam's `.friendGroup .friend` has higher specificity than a single `rcp-row` class. The plugin's `.friendGroup .rcp-row` explicitly restores the 58px height, grid columns, margins, and padding used by Recent Chats.
+The `friendGroup` ancestor is intentional, but Steam's `.friendGroup .friend` has higher specificity than a single `rcp-row` class. The plugin's `.friendGroup .rcp-row` explicitly restores the 58px height, grid columns, margins, and padding used by Recent Chats. The row deliberately has no explicit width: a block-level grid fills its container minus margins, so themes that force row margins (`margin: 2px 16px !important` floating-row designs) inset the row instead of pushing it past the card edge.
 
 ## Avatar
 
@@ -122,11 +124,13 @@ The badge remains nested under `unreadFriend`, so the state-scoped rule fires. P
 | Retained class | Matching desktop selector and required context | Native contribution |
 | --- | --- | --- |
 | `FriendsListContent` | `.FriendsListContent` | Full-height flex column with `min-height:0`. |
-| `friendlistListContainer` | `.friendlistListContainer` | Vertical scrolling, hidden horizontal overflow, smooth scrolling, flex growth, 32px minimum height, and Steam's radial dark Friends-list background. The high-contrast rule changes the background to black. |
+| `friendlistListContainer` | `.friendlistListContainer` | Flex growth, 32px minimum height, and Steam's radial dark Friends-list background. The high-contrast rule changes the background to black. |
 | `friendlistListContainer` | later `.friendlistListContainer`; native scrollbar selectors | Relative positioning and Friends-list scrollbar interaction colors. |
 | `listContentContainer` | `.listContentContainer` | Relative positioning for list content. |
 
 The list container itself paints the Image 2 background. The panel remains transparent so Steam and Millennium themes can replace that rule.
+
+Scrolling is deliberately moved off the container onto the rows card (`.rcp-list` is `overflow: hidden`; `.rcp-list-content` scrolls): themes drop the container's scrollbar-side padding when the container owns a scrollbar (mirroring the native list, where the scrollbar takes that edge), which pushed the card flush against the right edge. With the card scrolling internally, themed container padding stays symmetric.
 
 ## Removed and rejected classes
 
@@ -141,10 +145,17 @@ The list container itself paints the Image 2 background. The panel remains trans
 | `richPresenceContainer` | The literal rule requires `.AvatarAndUser .labelHolder`; that ancestor is absent. |
 | `richPresenceLabel` | Literal rules require one-on-one voice or `ChatRoomListGroupItem`; those ancestors are absent. |
 | `LastMessage` | No exact literal `.LastMessage` selector exists. `.LastMessageBlock` is a different class. |
+| `labelHolder` (on the copy block) | Valve's `.friend .labelHolder` contributions were minor, and themes size this hook for native single-line rows — one ships `.friend .labelHolder { width: 10px !important }`, which collapsed the plugin's ellipsized two-line copy to one character. The copy block uses only `rcp-copy`. |
 | `findClassModule` persona/avatar/Friends lookups | Removed. The resolved minified rules impose foreign 36px avatar geometry, masks, compact typography, and a `LastMessage` color that overrides the desired online snippet color. A successful lookup did not prove that its component context was correct. |
+
+## Millennium theme adaptation
+
+Themes cannot target `rcp-*` classes, so two plugin-owned surfaces with no native equivalent — the toolbar strip and the search-field colors — would otherwise stay Steam-default under every theme. The plugin toggles `rcp-themed` on the popup's root element by checking for stylesheets served from Millennium's origin (how active-theme CSS arrives; default Steam loads none), re-checking on every tab toggle because theme CSS can inject after mount. Default Steam keeps the original `#282d33` strip and Valve field colors; `html.rcp-themed` switches both to translucent neutrals (`rgba(0,0,0,.2)` / `rgba(0,0,0,.25)`) that darken whatever background the theme paints. This dual treatment is intentionally limited to these two surfaces.
+
+Theme-hardening rules learned from live themes, encoded above: match the native tab's `box-sizing`, keep the row width implicit so forced margins inset rather than overflow, avoid native hook classes whose themed sizing assumes native markup (`labelHolder`), scroll the card rather than the container, and pin only the Chats label's opacity against label-hiding designs.
 
 ## Plugin-owned properties
 
-The plugin always owns the 58px row grid, 42px avatar box, ellipsis, timestamp/meta placement, keyboard focus outline, row divider, toolbar layout, tab hover feedback, and skeleton animation. It also owns visuals with no suitable native source: toolbar background/shadow (a translucent neutral so it blends with themed backgrounds), neutral name treatment, avatar frame and initials fallback, relative timestamp, empty state, error banner, and the text glyphs/button resets for clear and refresh. The list keeps `scrollbar-gutter: stable` because themes that mirror the native list may zero the container's scrollbar-side padding; the reserved gutter keeps rows visually inset either way.
+The plugin always owns the 58px row grid, 42px avatar box, ellipsis, timestamp/meta placement, keyboard focus outline, row divider, toolbar layout, tab hover feedback, and skeleton animation. It also owns visuals with no suitable native source: toolbar background/shadow, neutral name treatment, avatar frame and initials fallback, relative timestamp, empty state, error banner, and the text glyphs/button resets for clear and refresh.
 
 The only resolver-style fallback that remains is the tab sibling copy. It can genuinely fail when the normal header is absent; all other retained native classes are literal and validated above.
