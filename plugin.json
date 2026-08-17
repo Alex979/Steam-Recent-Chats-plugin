@@ -3,6 +3,6 @@
     "name": "recent-chats",
     "common_name": "Recent Chats",
     "description": "Adds a recent-conversations view to Steam's desktop and overlay Friends windows.",
-    "version": "0.3.2",
+    "version": "0.3.3",
     "useBackend": false
 }
