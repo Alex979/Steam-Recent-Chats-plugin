@@ -249,6 +249,41 @@ html[data-recent-chats-poc-open] #recent-chats-poc-panel-host.rcp-content-fallba
 	line-height: 17px;
 }
 
+.rcp-snippet-skeleton {
+	animation: rcp-preview-pulse 2s ease-in-out infinite;
+	background: #3d4450;
+	border-radius: 2px;
+	display: block;
+	height: 9px;
+	margin: 4px 0;
+	max-width: 280px;
+	width: 60%;
+}
+
+.rcp-snippet-text {
+	display: block;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+@keyframes rcp-preview-pulse {
+	0%,
+	100% {
+		opacity: 0.5;
+	}
+
+	50% {
+		opacity: 1;
+	}
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.rcp-snippet-skeleton {
+		animation: none;
+		opacity: 0.75;
+	}
+}
+
 .rcp-meta {
 	align-items: flex-end;
 	align-self: stretch;

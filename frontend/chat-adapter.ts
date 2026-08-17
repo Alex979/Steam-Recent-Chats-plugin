@@ -10,12 +10,21 @@ export interface SteamRootStore extends UnknownRecord {
 }
 
 export type ConversationKind = 'friend' | 'group';
+export type PreviewState = 'pending' | 'ready' | 'unavailable';
+
+export const NO_MESSAGE_PREVIEW = 'No message preview';
+
+export interface PendingPreviewTiming {
+	startedAt: number;
+	timestamp: number;
+}
 
 export interface RecentConversation {
 	id: string;
 	kind: ConversationKind;
 	name: string;
 	snippet: string;
+	previewState: PreviewState;
 	timestamp: number;
 	unread: number;
 	avatarUrl?: string;
@@ -176,6 +185,14 @@ function isDirectChat(chat: UnknownRecord): boolean {
 	return getDirectAccountId(chat) > 0 || typeof safely(() => chat.GetLastMessage, undefined) === 'function';
 }
 
+function previewState(message: string, timestamp: number): PreviewState {
+	if (message) return 'ready';
+	// On a cold start Steam knows the last-message time before GetLastMessage has
+	// finished lazily loading the chat log. The timestamp lets us distinguish
+	// that temporary state from a conversation with no available preview data.
+	return timestamp > 0 ? 'pending' : 'unavailable';
+}
+
 function directConversation(chat: UnknownRecord, store: SteamRootStore, selfAccountId: number): RecentConversation {
 	const accountId = getDirectAccountId(chat);
 	const friend = safely(() => chat.chat_partner, {} as UnknownRecord);
@@ -185,18 +202,21 @@ function directConversation(chat: UnknownRecord, store: SteamRootStore, selfAcco
 		safely(() => loadedMessage?.unAccountID ?? loadedMessage?.accountid_sender ?? chat.accountid_last_message, 0),
 	);
 	const lastMessage = rawLastMessage(chat, loadedMessage);
+	const timestamp = lastMessageTimestamp(chat, loadedMessage);
+	const snippet = steamMessagePreview(lastMessage, {
+		store,
+		isDirect: true,
+		isOutgoing: senderAccountId > 0 && senderAccountId === selfAccountId,
+	});
+	const state = previewState(snippet, timestamp);
 
 	return {
 		id: `friend:${accountId || stringifyId(chat.unique_id)}`,
 		kind: 'friend',
 		name: safely(() => friend.display_name, '') || safely(() => persona.m_strPlayerName, '') || 'Unknown friend',
-		snippet:
-			steamMessagePreview(lastMessage, {
-				store,
-				isDirect: true,
-				isOutgoing: senderAccountId > 0 && senderAccountId === selfAccountId,
-			}) || 'No message preview',
-		timestamp: lastMessageTimestamp(chat, loadedMessage),
+		snippet: snippet || (state === 'unavailable' ? NO_MESSAGE_PREVIEW : ''),
+		previewState: state,
+		timestamp,
 		unread: Math.max(0, asFiniteNumber(safely(() => chat.unread_message_count, 0))),
 		avatarUrl: safely(() => persona.avatar_url_medium, '') || safely(() => friend.avatar_url_medium, '') || undefined,
 		accountId: accountId || undefined,
@@ -237,17 +257,52 @@ function groupConversation(group: UnknownRecord, store: SteamRootStore, selfAcco
 	});
 	const prefix = senderName && message ? `${senderName}: ` : '';
 	const groupId = safely(() => group.GetGroupID?.(), group.chat_group_id ?? group.unique_id);
+	const timestamp = lastMessageTimestamp(room, loadedMessage) || asTimestamp(safely(() => group.time_last_activity, 0));
+	const state = previewState(message, timestamp);
 
 	return {
 		id: `group:${stringifyId(groupId)}`,
 		kind: 'group',
 		name: safely(() => group.name, '') || 'Group chat',
-		snippet: `${prefix}${message || 'No message preview'}`,
-		timestamp: lastMessageTimestamp(room, loadedMessage) || asTimestamp(safely(() => group.time_last_activity, 0)),
+		snippet: message ? `${prefix}${message}` : state === 'unavailable' ? NO_MESSAGE_PREVIEW : '',
+		previewState: state,
+		timestamp,
 		unread: getGroupUnread(group),
 		avatarUrl: safely(() => group.avatar_url_medium, '') || undefined,
 		raw: group,
 	};
+}
+
+export function applyPreviewLoadingTimeout(
+	conversations: RecentConversation[],
+	pendingTimings: Map<string, PendingPreviewTiming>,
+	now: number,
+	timeoutMs: number,
+): RecentConversation[] {
+	const currentIds = new Set(conversations.map((conversation) => conversation.id));
+	for (const id of pendingTimings.keys()) {
+		if (!currentIds.has(id)) pendingTimings.delete(id);
+	}
+
+	return conversations.map((conversation) => {
+		if (conversation.previewState !== 'pending') {
+			pendingTimings.delete(conversation.id);
+			return conversation;
+		}
+
+		const timing = pendingTimings.get(conversation.id);
+		if (!timing || timing.timestamp !== conversation.timestamp) {
+			pendingTimings.set(conversation.id, { startedAt: now, timestamp: conversation.timestamp });
+			return conversation;
+		}
+
+		if (now - timing.startedAt < Math.max(0, timeoutMs)) return conversation;
+		return {
+			...conversation,
+			previewState: 'unavailable',
+			snippet: NO_MESSAGE_PREVIEW,
+		};
+	});
 }
 
 export function normalizeRecentChats(store: SteamRootStore): RecentConversation[] {

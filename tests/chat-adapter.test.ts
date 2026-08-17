@@ -1,6 +1,7 @@
 import { describe, expect, test } from 'bun:test';
 
 import {
+	applyPreviewLoadingTimeout,
 	cleanSteamText,
 	normalizeRecentChats,
 	steamId64FromAccountId,
@@ -150,6 +151,73 @@ describe('chat adapter', () => {
 			expect.objectContaining({ name: 'Grace', timestamp: 250 }),
 			expect.objectContaining({ name: 'Ada', timestamp: 0, unread: 1 }),
 		]);
+	});
+
+	test('marks an empty cold-start preview with a known timestamp as pending', () => {
+		let reads = 0;
+		const chat = {
+			accountid_partner: 42,
+			chat_partner: { display_name: 'Ada', persona: {} },
+			GetLastMessage: () => {
+				reads += 1;
+				return '';
+			},
+			time_last_message: 200,
+		};
+		const store = { ChatStore: { GetRecentChats: () => [chat] } } as SteamRootStore;
+
+		expect(normalizeRecentChats(store)[0]).toEqual(
+			expect.objectContaining({ snippet: '', previewState: 'pending', timestamp: 200 }),
+		);
+		expect(reads).toBe(1);
+	});
+
+	test('treats an empty preview without a timestamp as unavailable', () => {
+		const chat = {
+			accountid_partner: 42,
+			chat_partner: { display_name: 'Ada', persona: {} },
+			GetLastMessage: () => '',
+			unread_message_count: 1,
+		};
+		const store = { ChatStore: { GetRecentChats: () => [chat] } } as SteamRootStore;
+
+		expect(normalizeRecentChats(store)[0]).toEqual(
+			expect.objectContaining({ snippet: 'No message preview', previewState: 'unavailable' }),
+		);
+	});
+
+	test('bounds pending previews and clears their timer when Steam loads the message', () => {
+		let message = '';
+		const chat = {
+			accountid_partner: 42,
+			chat_partner: { display_name: 'Ada', persona: {} },
+			GetLastMessage: () => message,
+			time_last_message: 200,
+		};
+		const store = { ChatStore: { GetRecentChats: () => [chat] } } as SteamRootStore;
+		const pendingTimings = new Map<string, { startedAt: number; timestamp: number }>();
+
+		expect(applyPreviewLoadingTimeout(normalizeRecentChats(store), pendingTimings, 1_000, 5_000)[0].previewState).toBe(
+			'pending',
+		);
+		expect(applyPreviewLoadingTimeout(normalizeRecentChats(store), pendingTimings, 5_999, 5_000)[0].previewState).toBe(
+			'pending',
+		);
+		expect(applyPreviewLoadingTimeout(normalizeRecentChats(store), pendingTimings, 6_000, 5_000)[0]).toEqual(
+			expect.objectContaining({ snippet: 'No message preview', previewState: 'unavailable' }),
+		);
+
+		chat.time_last_message = 300;
+		expect(applyPreviewLoadingTimeout(normalizeRecentChats(store), pendingTimings, 6_100, 5_000)[0].previewState).toBe(
+			'pending',
+		);
+		expect(pendingTimings.get('friend:42')).toEqual({ startedAt: 6_100, timestamp: 300 });
+
+		message = 'Loaded message';
+		expect(applyPreviewLoadingTimeout(normalizeRecentChats(store), pendingTimings, 6_200, 5_000)[0]).toEqual(
+			expect.objectContaining({ snippet: 'Loaded message', previewState: 'ready' }),
+		);
+		expect(pendingTimings.size).toBe(0);
 	});
 
 	test('converts an account ID to an exact SteamID64 string', () => {

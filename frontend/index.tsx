@@ -3,7 +3,13 @@ import { createRoot, Root } from 'react-dom/client';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import { openConversation } from './chat-actions';
-import { normalizeRecentChats, RecentConversation, SteamRootStore } from './chat-adapter';
+import {
+	applyPreviewLoadingTimeout,
+	normalizeRecentChats,
+	PendingPreviewTiming,
+	RecentConversation,
+	SteamRootStore,
+} from './chat-adapter';
 import { classifyFriendsWindow, FriendsWindowTarget } from './friends-window';
 import { FRIENDS_WINDOW_STYLES } from './styles';
 
@@ -16,6 +22,8 @@ const DOCUMENT_RECONCILE_INTERVAL_MS = 500;
 const STARTUP_RECONCILE_INTERVAL_MS = 50;
 const STARTUP_RECONCILE_DURATION_MS = 5_000;
 const CHAT_REFRESH_INTERVAL_MS = 2_000;
+const PENDING_PREVIEW_REFRESH_INTERVAL_MS = 200;
+const PENDING_PREVIEW_TIMEOUT_MS = 5_000;
 const STORE_DISCOVERY_MAX_DELAY_MS = 30_000;
 
 interface PopupContext {
@@ -120,6 +128,7 @@ function sameConversations(left: RecentConversation[], right: RecentConversation
 			conversation.kind === other.kind &&
 			conversation.name === other.name &&
 			conversation.snippet === other.snippet &&
+			conversation.previewState === other.previewState &&
 			conversation.timestamp === other.timestamp &&
 			conversation.unread === other.unread &&
 			conversation.avatarUrl === other.avatarUrl &&
@@ -156,25 +165,34 @@ function RecentChatsPanel({ document, popupWindow, browserContext }: RecentChats
 	const [isOpen, setIsOpen] = useState(() => document.documentElement.hasAttribute(OPEN_ATTRIBUTE));
 	const [now, setNow] = useState(() => Date.now());
 	const storeRef = useRef<SteamRootStore | undefined>(undefined);
+	const pendingPreviewStartsRef = useRef(new Map<string, PendingPreviewTiming>());
 
-	const refresh = useCallback((): boolean => {
+	const refresh = useCallback((): { succeeded: boolean; hasPendingPreviews: boolean } => {
 		try {
 			const activeStore = storeRef.current ?? findSteamRootStore(document);
 			if (!activeStore) {
 				setError('Steam ChatStore not found on this build');
-				return false;
+				return { succeeded: false, hasPendingPreviews: false };
 			}
 
 			storeRef.current = activeStore;
 			setStore((current) => (current === activeStore ? current : activeStore));
-			const nextConversations = normalizeRecentChats(activeStore);
+			const nextConversations = applyPreviewLoadingTimeout(
+				normalizeRecentChats(activeStore),
+				pendingPreviewStartsRef.current,
+				Date.now(),
+				PENDING_PREVIEW_TIMEOUT_MS,
+			);
 			setConversations((current) => (sameConversations(current, nextConversations) ? current : nextConversations));
 			setError(undefined);
-			return true;
+			return {
+				succeeded: true,
+				hasPendingPreviews: nextConversations.some((conversation) => conversation.previewState === 'pending'),
+			};
 		} catch (refreshError) {
 			console.error(LOG_PREFIX, 'Failed to read recent chats.', refreshError);
 			setError('Steam returned an unexpected chat shape');
-			return false;
+			return { succeeded: false, hasPendingPreviews: false };
 		}
 	}, [document]);
 
@@ -188,18 +206,30 @@ function RecentChatsPanel({ document, popupWindow, browserContext }: RecentChats
 	}, [document, popupWindow]);
 
 	useEffect(() => {
-		if (!isOpen) return undefined;
 		let cancelled = false;
 		let timeout: number | undefined;
 		let retryDelay = CHAT_REFRESH_INTERVAL_MS;
 
 		const poll = () => {
-			const succeeded = refresh();
+			const result = refresh();
 			if (cancelled) return;
-			timeout = popupWindow.setTimeout(poll, succeeded ? CHAT_REFRESH_INTERVAL_MS : retryDelay);
-			retryDelay = succeeded
-				? CHAT_REFRESH_INTERVAL_MS
-				: Math.min(retryDelay * 2, STORE_DISCOVERY_MAX_DELAY_MS);
+
+			if (result.hasPendingPreviews) {
+				retryDelay = CHAT_REFRESH_INTERVAL_MS;
+				timeout = popupWindow.setTimeout(poll, PENDING_PREVIEW_REFRESH_INTERVAL_MS);
+				return;
+			}
+
+			if (!result.succeeded) {
+				timeout = popupWindow.setTimeout(poll, retryDelay);
+				retryDelay = Math.min(retryDelay * 2, STORE_DISCOVERY_MAX_DELAY_MS);
+				return;
+			}
+
+			// The first poll runs while Friends is still showing its native tab, which
+			// prewarms Steam's lazy chat logs. Normal polling remains active only while
+			// this panel is visible.
+			if (isOpen) timeout = popupWindow.setTimeout(poll, CHAT_REFRESH_INTERVAL_MS);
 		};
 
 		poll();
@@ -237,7 +267,7 @@ function RecentChatsPanel({ document, popupWindow, browserContext }: RecentChats
 					placeholder="Search recent chats"
 					aria-label="Search recent chats"
 				/>
-				<button className="rcp-refresh" type="button" onClick={refresh} title="Refresh recent chats">
+				<button className="rcp-refresh" type="button" onClick={() => refresh()} title="Refresh recent chats">
 					↻
 				</button>
 			</div>
@@ -253,7 +283,16 @@ function RecentChatsPanel({ document, popupWindow, browserContext }: RecentChats
 						<ConversationAvatar conversation={conversation} />
 						<span className="rcp-copy">
 							<span className="rcp-name">{conversation.name}</span>
-							<span className="rcp-snippet">{conversation.snippet}</span>
+							<span
+								className="rcp-snippet"
+								aria-label={conversation.previewState === 'pending' ? 'Loading message preview' : undefined}
+							>
+								{conversation.previewState === 'pending' ? (
+									<span className="rcp-snippet-skeleton" aria-hidden="true" />
+								) : (
+									<span className="rcp-snippet-text">{conversation.snippet}</span>
+								)}
+							</span>
 						</span>
 						<span className="rcp-meta">
 							{conversation.timestamp > 0 && <span className="rcp-time">{relativeTime(conversation.timestamp, now)}</span>}
