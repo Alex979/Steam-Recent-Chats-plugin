@@ -1,238 +1,147 @@
-# Steam desktop Friends class mapping
+# Steam desktop Friends CSS mapping
 
-This document records the native Steam classes and markup that Recent Chats should mirror. The source was inspected from disk only; Steam was not launched, modified, or debugged.
+This document records the native Steam classes retained by Recent Chats and the desktop CSS rules that actually match the injected DOM. The stylesheet, not the JavaScript export map, is the source of truth.
 
-## Source and counting method
+## Source and validation policy
 
-- Bundle: `C:\Program Files (x86)\Steam\steamui\chunk~2dcc5aaf7.js`
-- File size: `14,273,812` bytes
-- Modified: `2026-08-03T17:18:32-07:00`
-- SHA-256: `E2E66D26DA900D406AAD17E4165B98E362AC7F8EF8EF566AD7D1EC27EAD79C68`
-- The bundle contains 529 objects in the webpack CSS-export shape `moduleId:e=>{e.exports={...}}`. Filter counts below were computed by parsing those objects, extracting their case-sensitive keys, and counting objects containing every key in a candidate set.
+- CSS: `C:\Program Files (x86)\Steam\steamui\css\chunk~2dcc5aaf7.css`
+- Size: `4,878,054` bytes
+- Modified: `2026-07-21T21:30:12Z`
+- SHA-256: `0D06709DD5C72B9ED6760C7C383DD793899BE04CA97B61B8FBD11A8D11D66AE7`
+- Excluded while auditing: selectors under `.GamepadMode`, `#QuickAccess-Menu`, and `.CompactFriendsList`.
 
-Module IDs and current minified values are evidence only. Production code must resolve by semantic keys with `findClassModule`; it must never embed the IDs or minified values.
+A native class is kept only when a desktop rule matches the element's real tag, attributes, ancestors, and state. Layout that intentionally differs from Steam's 38px friend rows remains plugin-owned. When no suitable desktop rule exists, an `rcp-*` rule supplies the property directly.
 
-## Selection rules
-
-Use native styling in this order:
-
-1. Copy the classes from a live desktop-Friends sibling when one is necessarily present.
-2. Use literal semantic class names emitted by Steam's JSX.
-3. Resolve CSS-module classes with a multi-key `findClassModule` filter.
-4. Retain an `rcp-*` layout/fallback class when Steam has no suitable desktop-Friends equivalent or a lookup misses.
-
-The bundle also includes a Gamepad/Steam Deck Friends implementation. Its CSS modules are explicitly excluded below even when their names appear ideal for this plugin.
-
-## Mapping summary
-
-| Plugin element | Native source | Classes to apply | Resolution |
-| --- | --- | --- | --- |
-| Tab button | Desktop Friends sibling tab | copied sibling tokens, with `activeTab` toggled by Recent Chats; child `tabLabel` | live sibling first; `rcp-tab-button rcp-fallback` only on header fallback |
-| Search input and clear | Desktop Friends tab search | `socialSearchContainer`, `socialInputContainer SearchActive`, `inputContainer no-drag`, `friendSearchInput`, `friendSearchClear`; `searchIconButton` is the collapsed search trigger | literal |
-| Conversation row | Desktop friend and unread-chat row | `friend`, optional persona state, optional `unreadFriend` | literal |
-| Avatar | Shared avatar component used by desktop friend rows | literal `avatarHolder no-drag Medium`, `avatarStatus`, `avatar`; corresponding module classes | mixed literal + `avatarModule` |
-| Name | Desktop friend-row persona label | literal `labelHolder`; module `statusAndName` and `playerName` | mixed literal + `personaModule` |
-| Snippet | Desktop friend row's `lastChat` rich-presence renderer | module `richPresenceContainer`, `richPresenceLabel`, and `LastMessage`; literal `no-drag` | `personaModule` + `friendsModule` |
-| Unread badge | Desktop unread-friends group | `FriendMessageCount`; optional row/wrapper `unreadFriend` | literal |
-| Panel/list | Desktop Friends content tree | `FriendsListContent`, `friendlistListContainer`, `listContentContainer` | literal; inherit the native background |
-
-## Tab button
-
-The desktop Friends header emits this shape:
+## Effective injected structure
 
 ```text
-div.socialTabSearchContainer
-  div.socialTabContainer
-    div.friendTab.socialListTab.activeTab[.TabSearchActive]
-      div.tabLabel
-      div.friendsTabButtonsContainer
+div#recent-chats-poc-tab-host
+  div.friendTab.socialListTab.rcp-tab-button[.activeTab]
+    span.tabLabel
+
+div.rcp-panel.FriendsListContent
+  div.rcp-toolbar
+    form.rcp-search-form
+      div.rcp-search-container.inputContainer
+        input.rcp-search.friendSearchInput[type=text]
+        button.rcp-search-clear.friendSearchClear
+    button.rcp-refresh.friendListButton
+  div.rcp-list.friendlistListContainer
+    div.rcp-list-content.listContentContainer.friendGroup
+      div.rcp-row-wrapper[.unreadFriend]
+        div.rcp-row.friend.friendStatusHover.online
+          span.rcp-avatar-holder.avatarHolder
+            img.rcp-avatar.avatar
+          span.rcp-copy.labelHolder
+            span.rcp-name
+            span.rcp-snippet.status
+          span.rcp-meta
+            span.rcp-time
+            span.rcp-unread.FriendMessageCount
 ```
 
-The exact desktop JSX starts from `i = "friendTab socialListTab activeTab"`, appends `TabSearchActive` while search is open, and renders the `tabLabel` as the first child.
+The tab's native classes are copied from the live sibling. The diagram shows the normal current tokens; a theme may add more.
 
-Recent Chats should copy `className` from `.socialTabContainer .friendTab` at mount time. Split on whitespace and discard:
+## Tab
 
-- `activeTab`
-- every token containing `Search`, case-insensitively
+| Retained class | Matching desktop selector and required context | Native contribution |
+| --- | --- | --- |
+| `socialListTab` | `.socialListTab` | `flex-grow:1`, height `30px`, top margin `6px`, uppercase 13px/20px medium text, start padding `16px`, start alignment, inactive color, flex alignment, cursor, letter spacing, and transitions. Recent Chats neutralizes growth and adds matching end padding for a compact centered label. |
+| `socialListTab` | `.compactView .socialListTab` | Height `24px` when the Friends window enters compact view. |
+| `activeTab` | `.activeTab` | Active background `#434953`, top/side shadow, and text color `#b7ccd5`; the high-contrast media rule substitutes black/white with top and bottom borders. |
+| `tabLabel` | `.socialListTab .tabLabel` | Opacity and the label transition. |
+| `friendTab` | No rule in Valve's stylesheet | Deliberate exception: it is a native markup and Millennium-theme hook. It is copied from the live sibling even though Valve does not style it directly. |
 
-The copied base is currently `friendTab socialListTab`. `setOpen` should toggle native `activeTab` on the injected button. Keep the existing `tabLabel` child and the native-DOM click listener. If mounting under `.friendListHeaderContainer` because the normal sibling is absent, apply `rcp-tab-button rcp-fallback` instead.
+`copyNativeTabClassName` removes `activeTab` and every search-state token, then preserves the sibling's remaining tokens. Extra copied tokens may be supplied only by a Millennium theme; copying the live sibling preserves the exact native context even when Valve's base stylesheet has no corresponding rule. `rcp-tab-button` is always appended so the native-tab suppression rule can exclude the injected tab:
 
-No CSS-module lookup is involved.
-
-### Native-tab suppression limitation
-
-Steam's React tree re-adds `activeTab` to its native Friends tab. While Recent Chats is open, the plugin must keep the narrow selector that neutralizes only that sibling's `background-color` and `box-shadow`. Do not force a text color: leaving a possible inactive-color mismatch is preferable to overriding theme colors.
-
-## Search input and clear control
-
-Desktop Friends renders:
-
-```text
-div.socialSearchContainer
-  form.socialInputContainer.SearchActive
-    div.inputContainer.no-drag
-      input#friendSearchInputID.friendSearchInput
-      div.friendSearchClear
-        <Steam clear icon>
-
-div.searchIconButton
-  <Steam search icon>
+```css
+html[data-recent-chats-poc-open]
+  .socialTabContainer .friendTab.activeTab:not(.rcp-tab-button)
 ```
 
-`searchIconButton` is the separate collapsed-state trigger, not the input wrapper. The always-visible Recent Chats toolbar should mirror the inner input shape: an `inputContainer no-drag` wrapper containing `input.friendSearchInput` and a sibling clear control with `friendSearchClear`. `rcp-toolbar` can remain as a layout hook. The existing refresh action has no search-field equivalent; if retained, it can use the generic literal `friendListButton no-drag` while keeping its own layout/accessibility hook.
+The injected tab is a `div[role=tab][tabindex="0"]`, matching Steam's element type and avoiding browser button chrome. Click, Enter, and Space handling stays in the popup's native DOM. If no sibling can be copied, `rcp-fallback` supplies the whole tab appearance.
 
-All selected classes here are literal semantic strings. There is no lookup to fail.
+## Search and refresh toolbar
 
-## Conversation row
+| Retained class | Matching desktop selector and required context | Native contribution |
+| --- | --- | --- |
+| `inputContainer` | `.inputContainer` | Height `24px`, 2px radius, and overflow clipping. Recent Chats neutralizes the native outer margin because the toolbar owns spacing. |
+| `friendSearchInput` | `.friendSearchInput[type=text]` — requires exactly `type="text"` | Full-size dark field (`#262930`), inset shadow, transparent border, text color, 12px font, letter spacing, 24px start padding, a 16px search glyph, and transitions. |
+| `friendSearchInput` | `.friendSearchInput[type=text]:focus` | Dark focus background, tighter inset shadow, no outline, focus text color, and adjusted icon/padding position. |
+| `friendSearchInput` | `.friendSearchInput::placeholder`; `.friendSearchInput:hover::placeholder,.friendSearchInput:focus::placeholder` | Italic 12px placeholder and its interaction color. High-contrast media rules provide white text, border, and placeholder. |
+| `friendSearchClear` | `.friendSearchClear` | Absolute end positioning, `28px` by `26px` geometry, flex display, cursor, z-index, and opacity/transform transitions. |
+| `friendSearchClear` | `.friendSearchClear:hover` | Full hover opacity once the plugin has enabled pointer events. |
+| `friendListButton` | `.friendListButton`; `.friendListButton:last-child:not(.addFriendButton)` | `24px` square geometry, contained/no-repeat background setup, and native header-button margins. |
 
-The desktop friend-row component constructs its root as:
+Steam normally reveals the clear control through `.SearchActive .friendSearchClear`, but Recent Chats has no collapsible search state. Plugin CSS therefore owns enabled/disabled opacity and pointer events. It also resets the accessible clear and refresh `<button>` elements because Steam renders these controls without browser button chrome and the native rules do not perform a button reset.
 
-```text
-friend <persona-state> [caller classes]
-```
+The toolbar itself is plugin-owned. No native always-open toolbar fits this DOM without side effects.
 
-The desktop unread-chat group then renders:
+## List, rows, and text
 
-```text
-div.unreadFriend
-  <FriendRow class="friend <persona-state>">
-    ...
-    div.FriendMessageCount
-```
+| Retained class | Matching desktop selector and required context | Native contribution |
+| --- | --- | --- |
+| `friendGroup` | `.friendGroup` | Removes bottom padding. The wrapper supplies the required ancestor for desktop row rules. |
+| `friendGroup` | `.FriendsListContent .friendlistListContainer>.friendGroup:first-child` — wrapper must be the list's first direct child | Transparent top border and zero top margin. |
+| `friend` | `.friend` | Base friend color, flex display, neutral box shadow, and interaction transitions. |
+| `friend` | `.friendGroup .friend` — requires the `friendGroup` ancestor | Native 38px height, margins, padding, and row direction. Recent Chats overrides only this geometry with an equal-specificity 58px grid rule. |
+| `online` | `.friend.online` | Online color `#6dcff6`, inherited where a child has no more specific color. |
+| `friendStatusHover` + `online` | `.friendStatusHover.online:hover,.friendStatusHover.online.Friend_ContextMenuActive` | Native online-row hover background `rgba(36,52,64,.3)`. |
+| `labelHolder` | `.friend .labelHolder` — requires the `friend` ancestor | Growth, vertical alignment, `min-width:0`, and transitions. The native 28px height and 6px start margin are neutralized for the plugin's two-line grid and 8px grid gap. |
+| `status` | `.currentUserContainer.online .status,.friend.online .status` — the second selector matches | Darker online detail color `#4c91ac` for the message snippet. |
 
-Use literal `friend` on every Recent Chats row and literal `unreadFriend` when the conversation is unread. The persona helper used by the row returns these exact tokens:
+Steam supplies no validated literal desktop rule for the near-white name treatment or the desired two-line typography. `.rcp-name` therefore owns its color, size, weight, and line height; `.rcp-snippet` owns only typography while `status` supplies its native/theme color.
 
-- `offline`
-- `online`
-- `ingame`
-- `watchingbroadcast`
-- any of the above plus `awayOrSnooze`
-
-The helper used by the row says `ingame` (no hyphen); a separate model property returns `in-game`, but that is not the rendered class. Recent Chats does not currently normalize persona state, so omitting the modifier is safer than guessing. It may be added cheaply from the direct-chat persona later, provided group rows and missing personas degrade to bare `friend`.
-
-Do not use the module-mapped `RecentChatElement` for this desktop panel. Its component is the Gamepad Recent Messages tab described under **Rejected modules**.
+The `friendGroup` ancestor is intentional, but Steam's `.friendGroup .friend` has higher specificity than a single `rcp-row` class. The plugin's `.friendGroup .rcp-row` explicitly restores the 58px height, grid columns, margins, and padding used by Recent Chats.
 
 ## Avatar
 
-The Avatar component used by the native desktop friend row renders both module and literal classes:
+| Retained class | Matching desktop selector and required context | Native contribution |
+| --- | --- | --- |
+| `avatarHolder` | `.friendlistListContainer .friend .avatarHolder` | Relative positioning and 2px end padding. The plugin neutralizes the padding so its image remains a full 42px. |
+| `avatar` | `.friend .avatarHolder img.avatar` — requires an `img` inside the holder inside `friend` | Native border width `.5px`. |
 
-```text
-div.[avatarModule.avatarHolder].avatarHolder.no-drag.Medium[.<persona-state>]
-  div.[avatarModule.avatarStatus].avatarStatus[.<status-position>]
-  picture/img.[avatarModule.avatar].avatar
-  [optional avatar frame/children]
-```
-
-Recent Chats should add an `avatarHolder` wrapper around the image instead of putting holder styling directly on a bare image. The image receives literal `avatar` and `avatarModule.avatar`; the wrapper receives literal `avatarHolder no-drag Medium` and `avatarModule.avatarHolder`. `avatarStatus` can be omitted when no reliable status is available. An initials placeholder remains plugin-specific but should live inside the same native holder wrapper.
-
-Candidate resolver:
-
-```ts
-module.avatarHolder && module.avatarStatus && module.avatar && module.avatarFrameImg
-```
-
-Count: **1 of 529** CSS-export objects (bundle module `21045`). `avatarFrameImg` makes the filter identify the complete shared Avatar component rather than an unrelated object that happens to expose an avatar key.
-
-## Name and snippet
-
-The normal friend row passes literal `labelHolder` to Steam's persona-label component. When `lastChat` exists, that component renders this effective tree:
-
-```text
-div.labelHolder[.<persona-state>]
-  div.[personaModule.statusAndName]
-    div.[personaModule.playerName]
-      <display name>
-  div.[personaModule.richPresenceContainer]
-    div.[personaModule.richPresenceLabel].no-drag
-      div.[friendsModule.LastMessage]
-        <last-message text>
-```
-
-Mirror this nesting around `rcp-name` and `rcp-snippet` while retaining those `rcp-*` hooks for grid placement and ellipsis. The resolved native classes provide typography and theme colors; the plugin should own only layout/truncation.
-
-Candidate persona resolver:
-
-```ts
-module.statusAndName && module.playerName && module.richPresenceContainer && module.richPresenceLabel
-```
-
-Count: **1 of 529** (bundle module `66418`).
-
-Candidate last-message resolver:
-
-```ts
-module.LastMessage && module.OfflineContainer && module.FriendListContainerPanel && module.RecentChatIcon
-```
-
-Count: **1 of 529** (bundle module `63958`). The companion keys tie `LastMessage` to the desktop Friends feature module.
-
-The bundle's `personaName` and `personaNameLabel` keys belong to the hover mini-profile, whose native tree is `miniProfile > miniProfilePlayer/playerContent > playerAvatar + personaName/personaNameLabel`. That is not the list-row structure and should not be applied here.
+No literal desktop rule supplies the required 42px size, border style/color, radius, or fallback frame. Those properties remain on `rcp-avatar-holder`, `rcp-avatar`, and `rcp-avatar-fallback`.
 
 ## Unread badge
 
-The desktop unread-friends group creates:
+| Retained class | Matching desktop selector and required context | Native contribution |
+| --- | --- | --- |
+| `unreadFriend` | `.unreadFriend` | Relative flex wrapper used as the badge positioning context. |
+| `unreadFriend` | `.unreadFriend .friend` | Makes the nested row full width. |
+| `FriendMessageCount` | `.chatTab .chatTabUnreadBadge,.FriendMessageCount,.ChatUnreadMessageIndicator`; later `.FriendMessageCount` | Amber/yellow badge palette, height and line height, padding, alignment, and base animation properties. |
+| `FriendMessageCount` | `.unreadFriend .FriendMessageCount` — requires the unread wrapper ancestor | 12px text, translucent amber background and glow, 4px radius, centered padding, and absolute top/end positioning. |
 
-```text
-div.FriendMessageCount
-  <numeric unread count>
-```
+The badge remains nested under `unreadFriend`, so the state-scoped rule fires. Plugin CSS does not replace its native visual properties.
 
-Use literal `FriendMessageCount` alongside `rcp-unread`. This class appears in the desktop Friends unread group and also in Steam's chat-related list-status indicators, so it is a better desktop match than module key `UnreadCount`.
+## Panel and background
 
-No CSS-module lookup is needed for the chosen badge.
+| Retained class | Matching desktop selector and required context | Native contribution |
+| --- | --- | --- |
+| `FriendsListContent` | `.FriendsListContent` | Full-height flex column with `min-height:0`. |
+| `friendlistListContainer` | `.friendlistListContainer` | Vertical scrolling, hidden horizontal overflow, smooth scrolling, flex growth, 32px minimum height, and Steam's radial dark Friends-list background. The high-contrast rule changes the background to black. |
+| `friendlistListContainer` | later `.friendlistListContainer`; native scrollbar selectors | Relative positioning and Friends-list scrollbar interaction colors. |
+| `listContentContainer` | `.listContentContainer` | Relative positioning for list content. |
 
-## Panel and list containers
+The list container itself paints the Image 2 background. The panel remains transparent so Steam and Millennium themes can replace that rule.
 
-The desktop Friends content tree is:
+## Removed and rejected classes
 
-```text
-FriendsListContent[.CompactFriendsList]
-  friendlistListContainer
-    listContentContainer
-      <friend groups/rows>
-      div.disconnectBlocker
-```
+| Class or mechanism | CSS evidence and reason for removal |
+| --- | --- |
+| `socialSearchContainer` | `.socialSearchContainer { background-color:#434953; display:flex; flex-direction:row; flex-grow:1 }`; growth created the large dead toolbar area. |
+| `socialInputContainer SearchActive` | `.socialInputContainer` is intentionally collapsed (`opacity:0`, `max-height:3px`, scaled vertically); `.socialInputContainer.SearchActive` opens it. A permanently open plugin form should not impersonate this state machine. |
+| `no-drag` | No matching rule exists in the audited stylesheet. Plugin CSS uses `-webkit-app-region:no-drag` directly where needed. |
+| `Medium` | Only `.currentUserAvatar .avatarHolder.Medium` or a minified avatar-module selector matches. Neither context exists after module removal. |
+| `statusAndName` | Only dialog/voice-scoped literal rules exist; none match the recent-chat row. |
+| `playerName` | Literal rules are quick-access-scoped; none match the recent-chat row. |
+| `richPresenceContainer` | The literal rule requires `.AvatarAndUser .labelHolder`; that ancestor is absent. |
+| `richPresenceLabel` | Literal rules require one-on-one voice or `ChatRoomListGroupItem`; those ancestors are absent. |
+| `LastMessage` | No exact literal `.LastMessage` selector exists. `.LastMessageBlock` is a different class. |
+| `findClassModule` persona/avatar/Friends lookups | Removed. The resolved minified rules impose foreign 36px avatar geometry, masks, compact typography, and a `LastMessage` color that overrides the desired online snippet color. A successful lookup did not prove that its component context was correct. |
 
-These are all literal semantic classes. Apply `FriendsListContent` to the panel content root, `friendlistListContainer` to the scroll container, and `listContentContainer` to its inner list if the extra wrapper is introduced. Keep `rcp-panel`/`rcp-list` only for flex sizing, scroll containment, and mount hooks.
+## Plugin-owned properties
 
-The plugin should not paint a panel background. In particular, remove the custom radial gradient so the native/theme background on these containers or their ancestors shows through.
+The plugin always owns the 58px row grid, 42px avatar box, ellipsis, timestamp/meta placement, keyboard focus outline, row divider, toolbar layout, and skeleton animation. It also owns visuals with no suitable native source: toolbar background/shadow, neutral name treatment, avatar frame and initials fallback, relative timestamp, empty state, error banner, and the text glyphs/button resets for clear and refresh.
 
-## Rejected modules and collision checks
-
-### Gamepad Recent Messages module
-
-The tempting module containing `RecentChatsList`, `RecentChatElement`, `UnreadCount`, and `Time` is used as `tabContentElement` for `RecentMessages` inside a root constructed as `friendlist GamepadMode`. It is therefore not valid for desktop Friends.
-
-Candidate identification filter:
-
-```ts
-module.RecentChatsList && module.RecentChatElement && module.UnreadCount && module.Time
-```
-
-Count: **1 of 529** (bundle module `97764`). This filter should be used in tests as a Gamepad-shaped rejection fixture, not as a runtime styling source.
-
-Its current module-local `UnreadCount` value appears only in the export map and is not referenced by the component. That component renders literal `FriendMessageCount` for its badges anyway.
-
-### Mini-profile persona module
-
-The hover mini-profile module is uniquely identified by:
-
-```ts
-module.miniProfile && module.playerAvatar && module.personaName && module.personaNameLabel
-```
-
-Count: **1 of 529** (bundle module `24336`). It is a useful negative fixture for the desktop row-persona filter.
-
-### Positive-filter counts
-
-| Runtime module | Required keys | Matches |
-| --- | --- | ---: |
-| Avatar | `avatarHolder`, `avatarStatus`, `avatar`, `avatarFrameImg` | 1 |
-| Desktop row persona | `statusAndName`, `playerName`, `richPresenceContainer`, `richPresenceLabel` | 1 |
-| Desktop last-message/Friends feature | `LastMessage`, `OfflineContainer`, `FriendListContainerPanel`, `RecentChatIcon` | 1 |
-
-Each runtime lookup should return `undefined` on a miss. Callers should add `rcp-fallback`, and the resolver should emit at most one `[Recent Chats]` warning per missing module rather than warning per row or render.
-
-## Elements that remain plugin-owned
-
-Steam has no close desktop-Friends equivalent for the preview skeleton, relative timestamp in this row shape, empty state, error banner, or initials fallback. Keep their `rcp-*` hooks, but make normal-path rules layout-only and inherit color/font from the native containers. Any visual approximation belongs in a clearly marked `.rcp-fallback`-gated section.
+The only resolver-style fallback that remains is the tab sibling copy. It can genuinely fail when the normal header is absent; all other retained native classes are literal and validated above.
