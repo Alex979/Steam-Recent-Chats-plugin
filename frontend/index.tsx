@@ -11,6 +11,8 @@ import {
 	SteamRootStore,
 } from './chat-adapter';
 import { classifyFriendsWindow, FriendsWindowTarget } from './friends-window';
+import { copyNativeTabClassName } from './steam-class-logic';
+import { resolveSteamClasses, SteamClasses } from './steam-classes';
 import { FRIENDS_WINDOW_STYLES } from './styles';
 
 const LOG_PREFIX = '[Recent Chats]';
@@ -142,13 +144,45 @@ function getPopupMutationObserver(popupWindow: Window): typeof MutationObserver 
 	return (popupWindow as Window & { MutationObserver?: typeof MutationObserver }).MutationObserver ?? MutationObserver;
 }
 
-function ConversationAvatar({ conversation }: { conversation: RecentConversation }) {
-	const [failed, setFailed] = useState(false);
-	if (!conversation.avatarUrl || failed) {
-		return <div className="rcp-avatar-fallback">{conversation.name.slice(0, 1).toUpperCase()}</div>;
-	}
+function joinClasses(...classes: Array<string | false | null | undefined>): string {
+	return classes.filter((className): className is string => Boolean(className)).join(' ');
+}
 
-	return <img className="rcp-avatar" src={conversation.avatarUrl} alt="" draggable={false} onError={() => setFailed(true)} />;
+function ConversationAvatar({
+	conversation,
+	classes,
+}: {
+	conversation: RecentConversation;
+	classes: SteamClasses['avatar'];
+}) {
+	const [failed, setFailed] = useState(false);
+
+	return (
+		<span
+			className={joinClasses(
+				'rcp-avatar-holder',
+				'avatarHolder',
+				'no-drag',
+				'Medium',
+				classes?.avatarHolder,
+				!classes && 'rcp-fallback',
+			)}
+		>
+			{!conversation.avatarUrl || failed ? (
+				<span className="rcp-avatar-fallback rcp-fallback">
+					{conversation.name.slice(0, 1).toUpperCase()}
+				</span>
+			) : (
+				<img
+					className={joinClasses('rcp-avatar', 'avatar', classes?.avatar, !classes && 'rcp-fallback')}
+					src={conversation.avatarUrl}
+					alt=""
+					draggable={false}
+					onError={() => setFailed(true)}
+				/>
+			)}
+		</span>
+	);
 }
 
 interface RecentChatsAppProps {
@@ -158,6 +192,7 @@ interface RecentChatsAppProps {
 }
 
 function RecentChatsPanel({ document, popupWindow, browserContext }: RecentChatsAppProps) {
+	const steamClasses = useMemo(() => resolveSteamClasses(), []);
 	const [query, setQuery] = useState('');
 	const [store, setStore] = useState<SteamRootStore>();
 	const [conversations, setConversations] = useState<RecentConversation[]>([]);
@@ -257,58 +292,122 @@ function RecentChatsPanel({ document, popupWindow, browserContext }: RecentChats
 	}, [conversations, query]);
 
 	return (
-		<div className="rcp-panel">
-			<div className="rcp-toolbar">
-				<input
-					className="rcp-search"
-					type="search"
-					value={query}
-					onChange={(event) => setQuery(event.currentTarget.value)}
-					placeholder="Search recent chats"
-					aria-label="Search recent chats"
-				/>
-				<button className="rcp-refresh" type="button" onClick={() => refresh()} title="Refresh recent chats">
+		<div className="rcp-panel FriendsListContent">
+			<div className="rcp-toolbar socialSearchContainer">
+				<form className="rcp-search-form socialInputContainer SearchActive" onSubmit={(event) => event.preventDefault()}>
+					<div className="rcp-search-container inputContainer no-drag">
+						<input
+							className="rcp-search friendSearchInput"
+							type="search"
+							value={query}
+							onChange={(event) => setQuery(event.currentTarget.value)}
+							placeholder="Search recent chats"
+							aria-label="Search recent chats"
+						/>
+						<button
+							className="rcp-search-clear friendSearchClear"
+							type="button"
+							onClick={() => setQuery('')}
+							disabled={!query}
+							aria-label="Clear recent chat search"
+						>
+							<span aria-hidden="true">×</span>
+						</button>
+					</div>
+				</form>
+				<button
+					className="rcp-refresh friendListButton no-drag"
+					type="button"
+					onClick={() => refresh()}
+					title="Refresh recent chats"
+				>
 					↻
 				</button>
 			</div>
 			{error && <div className="rcp-error-banner">Recent chats are temporarily unavailable. Try refreshing.</div>}
-			<div className="rcp-list">
-				{filteredConversations.map((conversation) => (
-					<button
-						className="rcp-row"
-						type="button"
-						key={conversation.id}
-						onClick={() => store && openConversation(store, conversation, popupWindow, browserContext)}
-					>
-						<ConversationAvatar conversation={conversation} />
-						<span className="rcp-copy">
-							<span className="rcp-name">{conversation.name}</span>
-							<span
-								className="rcp-snippet"
-								aria-label={conversation.previewState === 'pending' ? 'Loading message preview' : undefined}
+			<div className="rcp-list friendlistListContainer">
+				<div className="rcp-list-content listContentContainer">
+					{filteredConversations.map((conversation) => (
+						<div
+							className={joinClasses('rcp-row-wrapper', conversation.unread > 0 && 'unreadFriend')}
+							key={conversation.id}
+						>
+							<div
+								className="rcp-row friend"
+								role="button"
+								tabIndex={0}
+								onClick={() => store && openConversation(store, conversation, popupWindow, browserContext)}
+								onKeyDown={(event) => {
+									if (event.key !== 'Enter' && event.key !== ' ') return;
+									event.preventDefault();
+									if (store) openConversation(store, conversation, popupWindow, browserContext);
+								}}
 							>
-								{conversation.previewState === 'pending' ? (
-									<span className="rcp-snippet-skeleton" aria-hidden="true" />
-								) : (
-									<span className="rcp-snippet-text">{conversation.snippet}</span>
-								)}
-							</span>
-						</span>
-						<span className="rcp-meta">
-							{conversation.timestamp > 0 && <span className="rcp-time">{relativeTime(conversation.timestamp, now)}</span>}
-							{conversation.unread > 0 && <span className="rcp-unread">{conversation.unread}</span>}
-						</span>
-					</button>
-				))}
-				{filteredConversations.length === 0 && (
-					<div className="rcp-empty">
-						{error
-							? 'Steam’s chat data could not be read on this build.'
-							: query
-								? 'No recent conversations match that search.'
-								: 'Steam did not return any recent conversations. Try opening a chat once, then refresh.'}
-					</div>
-				)}
+								<ConversationAvatar conversation={conversation} classes={steamClasses.avatar} />
+								<span className="rcp-copy labelHolder">
+									<span
+										className={joinClasses(
+											'rcp-status-and-name',
+											steamClasses.persona?.statusAndName,
+											!steamClasses.persona && 'rcp-fallback',
+										)}
+									>
+										<span
+											className={joinClasses(
+												'rcp-name',
+												steamClasses.persona?.playerName,
+												!steamClasses.persona && 'rcp-fallback',
+											)}
+										>
+											{conversation.name}
+										</span>
+									</span>
+									<span
+										className={joinClasses(
+											'rcp-snippet',
+											steamClasses.persona?.richPresenceContainer,
+											(!steamClasses.persona || !steamClasses.friends) && 'rcp-fallback',
+										)}
+										aria-label={conversation.previewState === 'pending' ? 'Loading message preview' : undefined}
+									>
+										<span
+											className={joinClasses(
+												'rcp-rich-presence-label',
+												'no-drag',
+												steamClasses.persona?.richPresenceLabel,
+											)}
+										>
+											<span className={joinClasses('rcp-last-message', steamClasses.friends?.LastMessage)}>
+												{conversation.previewState === 'pending' ? (
+													<span className="rcp-snippet-skeleton" aria-hidden="true" />
+												) : (
+													<span className="rcp-snippet-text">{conversation.snippet}</span>
+												)}
+											</span>
+										</span>
+									</span>
+								</span>
+								<span className="rcp-meta">
+									{conversation.timestamp > 0 && (
+										<span className="rcp-time">{relativeTime(conversation.timestamp, now)}</span>
+									)}
+									{conversation.unread > 0 && (
+										<span className="rcp-unread FriendMessageCount">{conversation.unread}</span>
+									)}
+								</span>
+							</div>
+						</div>
+					))}
+					{filteredConversations.length === 0 && (
+						<div className="rcp-empty">
+							{error
+								? 'Steam’s chat data could not be read on this build.'
+								: query
+									? 'No recent conversations match that search.'
+									: 'Steam did not return any recent conversations. Try opening a chat once, then refresh.'}
+						</div>
+					)}
+				</div>
 			</div>
 		</div>
 	);
@@ -411,7 +510,8 @@ function mountFriendsDocument(
 	header.append(tabHost);
 
 	const tabButton = document.createElement('button');
-	tabButton.className = 'rcp-tab-button';
+	const nativeTabClassName = copyNativeTabClassName(header.querySelector<HTMLElement>('.friendTab')?.className);
+	tabButton.className = nativeTabClassName ?? 'rcp-tab-button rcp-fallback';
 	tabButton.type = 'button';
 	tabButton.setAttribute('role', 'tab');
 	tabButton.setAttribute('aria-selected', 'false');
@@ -432,7 +532,7 @@ function mountFriendsDocument(
 		const wasOpen = document.documentElement.hasAttribute(OPEN_ATTRIBUTE);
 		if (open) document.documentElement.setAttribute(OPEN_ATTRIBUTE, 'true');
 		else document.documentElement.removeAttribute(OPEN_ATTRIBUTE);
-		tabButton.classList.toggle('rcp-active', open);
+		tabButton.classList.toggle('activeTab', open);
 		tabButton.setAttribute('aria-selected', String(open));
 		if (wasOpen !== open) console.info(LOG_PREFIX, open ? 'Opened Chats panel' : 'Closed Chats panel');
 	};
