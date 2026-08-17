@@ -12,7 +12,6 @@ import {
 } from './chat-adapter';
 import { classifyFriendsWindow, FriendsWindowTarget } from './friends-window';
 import { copyNativeTabClassName } from './steam-class-logic';
-import { resolveSteamClasses, SteamClasses } from './steam-classes';
 import { FRIENDS_WINDOW_STYLES } from './styles';
 
 const LOG_PREFIX = '[Recent Chats]';
@@ -148,33 +147,18 @@ function joinClasses(...classes: Array<string | false | null | undefined>): stri
 	return classes.filter((className): className is string => Boolean(className)).join(' ');
 }
 
-function ConversationAvatar({
-	conversation,
-	classes,
-}: {
-	conversation: RecentConversation;
-	classes: SteamClasses['avatar'];
-}) {
+function ConversationAvatar({ conversation }: { conversation: RecentConversation }) {
 	const [failed, setFailed] = useState(false);
 
 	return (
-		<span
-			className={joinClasses(
-				'rcp-avatar-holder',
-				'avatarHolder',
-				'no-drag',
-				'Medium',
-				classes?.avatarHolder,
-				!classes && 'rcp-fallback',
-			)}
-		>
+		<span className="rcp-avatar-holder avatarHolder">
 			{!conversation.avatarUrl || failed ? (
-				<span className="rcp-avatar-fallback rcp-fallback">
+				<span className="rcp-avatar-fallback">
 					{conversation.name.slice(0, 1).toUpperCase()}
 				</span>
 			) : (
 				<img
-					className={joinClasses('rcp-avatar', 'avatar', classes?.avatar, !classes && 'rcp-fallback')}
+					className="rcp-avatar avatar"
 					src={conversation.avatarUrl}
 					alt=""
 					draggable={false}
@@ -192,7 +176,6 @@ interface RecentChatsAppProps {
 }
 
 function RecentChatsPanel({ document, popupWindow, browserContext }: RecentChatsAppProps) {
-	const steamClasses = useMemo(() => resolveSteamClasses(), []);
 	const [query, setQuery] = useState('');
 	const [store, setStore] = useState<SteamRootStore>();
 	const [conversations, setConversations] = useState<RecentConversation[]>([]);
@@ -293,12 +276,12 @@ function RecentChatsPanel({ document, popupWindow, browserContext }: RecentChats
 
 	return (
 		<div className="rcp-panel FriendsListContent">
-			<div className="rcp-toolbar socialSearchContainer">
-				<form className="rcp-search-form socialInputContainer SearchActive" onSubmit={(event) => event.preventDefault()}>
-					<div className="rcp-search-container inputContainer no-drag">
+			<div className="rcp-toolbar">
+				<form className="rcp-search-form" onSubmit={(event) => event.preventDefault()}>
+					<div className="rcp-search-container inputContainer">
 						<input
 							className="rcp-search friendSearchInput"
-							type="search"
+							type="text"
 							value={query}
 							onChange={(event) => setQuery(event.currentTarget.value)}
 							placeholder="Search recent chats"
@@ -316,7 +299,7 @@ function RecentChatsPanel({ document, popupWindow, browserContext }: RecentChats
 					</div>
 				</form>
 				<button
-					className="rcp-refresh friendListButton no-drag"
+					className="rcp-refresh friendListButton"
 					type="button"
 					onClick={() => refresh()}
 					title="Refresh recent chats"
@@ -326,14 +309,14 @@ function RecentChatsPanel({ document, popupWindow, browserContext }: RecentChats
 			</div>
 			{error && <div className="rcp-error-banner">Recent chats are temporarily unavailable. Try refreshing.</div>}
 			<div className="rcp-list friendlistListContainer">
-				<div className="rcp-list-content listContentContainer">
+				<div className="rcp-list-content listContentContainer friendGroup">
 					{filteredConversations.map((conversation) => (
 						<div
 							className={joinClasses('rcp-row-wrapper', conversation.unread > 0 && 'unreadFriend')}
 							key={conversation.id}
 						>
 							<div
-								className="rcp-row friend"
+								className="rcp-row friend friendStatusHover online"
 								role="button"
 								tabIndex={0}
 								onClick={() => store && openConversation(store, conversation, popupWindow, browserContext)}
@@ -343,48 +326,18 @@ function RecentChatsPanel({ document, popupWindow, browserContext }: RecentChats
 									if (store) openConversation(store, conversation, popupWindow, browserContext);
 								}}
 							>
-								<ConversationAvatar conversation={conversation} classes={steamClasses.avatar} />
+								<ConversationAvatar conversation={conversation} />
 								<span className="rcp-copy labelHolder">
+									<span className="rcp-name">{conversation.name}</span>
 									<span
-										className={joinClasses(
-											'rcp-status-and-name',
-											steamClasses.persona?.statusAndName,
-											!steamClasses.persona && 'rcp-fallback',
-										)}
-									>
-										<span
-											className={joinClasses(
-												'rcp-name',
-												steamClasses.persona?.playerName,
-												!steamClasses.persona && 'rcp-fallback',
-											)}
-										>
-											{conversation.name}
-										</span>
-									</span>
-									<span
-										className={joinClasses(
-											'rcp-snippet',
-											steamClasses.persona?.richPresenceContainer,
-											(!steamClasses.persona || !steamClasses.friends) && 'rcp-fallback',
-										)}
+										className="rcp-snippet status"
 										aria-label={conversation.previewState === 'pending' ? 'Loading message preview' : undefined}
 									>
-										<span
-											className={joinClasses(
-												'rcp-rich-presence-label',
-												'no-drag',
-												steamClasses.persona?.richPresenceLabel,
-											)}
-										>
-											<span className={joinClasses('rcp-last-message', steamClasses.friends?.LastMessage)}>
-												{conversation.previewState === 'pending' ? (
-													<span className="rcp-snippet-skeleton" aria-hidden="true" />
-												) : (
-													<span className="rcp-snippet-text">{conversation.snippet}</span>
-												)}
-											</span>
-										</span>
+										{conversation.previewState === 'pending' ? (
+											<span className="rcp-snippet-skeleton" aria-hidden="true" />
+										) : (
+											<span className="rcp-snippet-text">{conversation.snippet}</span>
+										)}
 									</span>
 								</span>
 								<span className="rcp-meta">
@@ -509,11 +462,13 @@ function mountFriendsDocument(
 	if (!header.classList.contains('socialTabContainer')) tabHost.classList.add('rcp-header-fallback');
 	header.append(tabHost);
 
-	const tabButton = document.createElement('button');
+	const tabButton = document.createElement('div');
 	const nativeTabClassName = copyNativeTabClassName(header.querySelector<HTMLElement>('.friendTab')?.className);
-	tabButton.className = nativeTabClassName ?? 'rcp-tab-button rcp-fallback';
-	tabButton.type = 'button';
+	tabButton.className = nativeTabClassName
+		? `${nativeTabClassName} rcp-tab-button`
+		: 'rcp-tab-button rcp-fallback';
 	tabButton.setAttribute('role', 'tab');
+	tabButton.tabIndex = 0;
 	tabButton.setAttribute('aria-selected', 'false');
 	tabButton.setAttribute('aria-controls', PANEL_HOST_ID);
 	const tabLabel = document.createElement('span');
@@ -538,6 +493,12 @@ function mountFriendsDocument(
 	};
 
 	tabButton.addEventListener('click', (event) => {
+		event.preventDefault();
+		event.stopPropagation();
+		setOpen(!document.documentElement.hasAttribute(OPEN_ATTRIBUTE));
+	});
+	tabButton.addEventListener('keydown', (event) => {
+		if (event.key !== 'Enter' && event.key !== ' ') return;
 		event.preventDefault();
 		event.stopPropagation();
 		setOpen(!document.documentElement.hasAttribute(OPEN_ATTRIBUTE));

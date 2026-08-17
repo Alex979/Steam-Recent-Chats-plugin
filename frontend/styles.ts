@@ -14,7 +14,13 @@ export const FRIENDS_WINDOW_STYLES = `
 	z-index: 20;
 }
 
-html[data-recent-chats-poc-open] .socialTabContainer .friendTab.activeTab {
+#recent-chats-poc-tab-host .rcp-tab-button {
+	box-sizing: border-box;
+	flex-grow: 0;
+	padding-inline-end: 16px;
+}
+
+html[data-recent-chats-poc-open] .socialTabContainer .friendTab.activeTab:not(.rcp-tab-button) {
 	background-color: transparent;
 	box-shadow: none;
 }
@@ -46,9 +52,13 @@ html[data-recent-chats-poc-open] #recent-chats-poc-panel-host.rcp-content-fallba
 	min-height: 0;
 }
 
+/* Steam has no always-open desktop search-toolbar class without growth/state side effects. */
 .rcp-toolbar {
 	align-items: center;
+	background: #282d33;
+	box-shadow: 0 2px 4px rgba(0, 0, 0, 0.22);
 	display: flex;
+	flex: 0 0 auto;
 	gap: 6px;
 	padding: 6px 8px;
 	z-index: 1;
@@ -65,22 +75,69 @@ html[data-recent-chats-poc-open] #recent-chats-poc-panel-host.rcp-content-fallba
 	margin: 0;
 }
 
+.rcp-search-container {
+	-webkit-app-region: no-drag;
+	margin: 0;
+	position: relative;
+}
+
 .rcp-search {
 	box-sizing: border-box;
 	flex: 1 1 auto;
 	min-width: 0;
+	padding-inline-end: 25px;
 }
 
+/* Steam renders friendSearchClear as a div; reset the accessible button wrapper. */
 .rcp-search-clear {
+	align-items: center;
 	appearance: none;
-	flex: 0 0 auto;
+	background: transparent;
+	border: 0;
+	color: inherit;
+	justify-content: center;
+	padding: 0;
+}
+
+.rcp-search-clear:not(:disabled) {
+	opacity: 0.4;
+	pointer-events: auto;
+}
+
+.rcp-search-clear:disabled {
+	opacity: 0;
+}
+
+.rcp-search-clear span {
+	font-size: 18px;
+	line-height: 1;
 }
 
 .rcp-refresh {
+	-webkit-app-region: no-drag;
+	appearance: none;
+	background: transparent;
+	border: 0;
+	color: inherit;
+	cursor: pointer;
 	flex: 0 0 auto;
+	font: 18px/24px Arial, sans-serif;
+	padding: 0;
 }
 
+.rcp-refresh:hover,
+.rcp-refresh:focus-visible {
+	background-color: rgba(255, 255, 255, 0.08);
+	outline: none;
+}
+
+/* Error state has no native Friends-list equivalent. */
 .rcp-error-banner {
+	background: rgba(120, 45, 36, 0.65);
+	border-bottom: 1px solid rgba(219, 116, 91, 0.28);
+	color: #e6b4a8;
+	font-size: 11px;
+	line-height: 16px;
 	padding: 5px 10px;
 }
 
@@ -91,27 +148,39 @@ html[data-recent-chats-poc-open] #recent-chats-poc-panel-host.rcp-content-fallba
 	overflow-y: auto;
 }
 
+.rcp-list-content,
 .rcp-row-wrapper {
 	min-width: 0;
 	width: 100%;
 }
 
-.rcp-row {
+/* Native rows are 38px; Recent Chats owns its 58px three-column geometry. */
+.friendGroup .rcp-row {
+	-webkit-app-region: no-drag;
 	align-items: center;
+	border-bottom: 1px solid rgba(0, 0, 0, 0.22);
 	box-sizing: border-box;
 	cursor: pointer;
 	display: grid;
 	gap: 8px;
 	grid-template-columns: 42px minmax(0, 1fr) max-content;
+	height: auto;
+	margin: 0;
 	min-height: 58px;
 	padding: 7px 9px;
 	text-align: left;
 	width: 100%;
 }
 
-.rcp-avatar-holder {
+.rcp-row:focus-visible {
+	outline: 1px solid currentColor;
+	outline-offset: -1px;
+}
+
+.friendlistListContainer .friend .rcp-avatar-holder {
 	box-sizing: border-box;
 	height: 42px;
+	padding-inline-end: 0;
 	width: 42px;
 }
 
@@ -123,33 +192,62 @@ html[data-recent-chats-poc-open] #recent-chats-poc-panel-host.rcp-content-fallba
 	width: 100%;
 }
 
+/* Literal avatar rules provide position and border width, but not the image frame. */
+.rcp-avatar {
+	background: #252a30;
+	border-color: #4f6168;
+	border-radius: 2px;
+	border-style: solid;
+}
+
 .rcp-avatar-fallback {
 	align-items: center;
+	background: #252a30;
+	border: 1px solid #4f6168;
+	border-radius: 2px;
+	color: #6dcff6;
 	display: flex;
+	font-size: 17px;
+	font-weight: 500;
 	justify-content: center;
 }
 
-.rcp-copy {
+.friend .rcp-copy {
 	align-self: center;
 	display: grid;
 	grid-template-rows: auto auto;
+	height: auto;
+	margin: 0;
 	min-width: 0;
 }
 
-.rcp-status-and-name,
-.rcp-rich-presence-label,
 .rcp-name,
 .rcp-snippet {
+	display: block;
 	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
 }
 
-.rcp-name,
-.rcp-snippet,
+/* No desktop literal class produces the neutral recent-chat name treatment. */
+.rcp-name {
+	color: #d6d7d8;
+	font-size: 14px;
+	font-weight: 500;
+	line-height: 19px;
+}
+
+.rcp-snippet {
+	font-size: 12px;
+	font-weight: 400;
+	line-height: 17px;
+}
+
 .rcp-snippet-text {
 	display: block;
 	overflow: hidden;
 	text-overflow: ellipsis;
-	white-space: nowrap;
 }
 
 .rcp-snippet-skeleton {
@@ -192,31 +290,25 @@ html[data-recent-chats-poc-open] #recent-chats-poc-panel-host.rcp-content-fallba
 	min-width: 0;
 }
 
+/* Relative time and empty-state copy are plugin-only information. */
 .rcp-time {
+	color: #7a848d;
+	font-size: 11px;
+	line-height: 16px;
 	white-space: nowrap;
 }
 
-.rcp-unread {
-	align-items: center;
-	display: flex;
-	height: 18px;
-	justify-content: center;
-	min-width: 18px;
-	padding: 0 3px;
-}
-
 .rcp-empty {
+	color: #7a848d;
+	font-size: 12px;
+	line-height: 18px;
 	padding: 28px 22px;
 	text-align: center;
 }
 
-/*
- * Fallback visuals are intentionally scoped to resolver misses. Native Steam
- * classes own all colors, typography, borders, and interaction states above.
- */
+/* The tab fallback is used only when no live desktop sibling can be copied. */
 #recent-chats-poc-tab-host .rcp-tab-button.rcp-fallback {
 	align-items: center;
-	appearance: none;
 	background: transparent;
 	border: 0;
 	box-sizing: border-box;
@@ -247,42 +339,5 @@ html[data-recent-chats-poc-open] #recent-chats-poc-panel-host.rcp-content-fallba
 	background-color: #434953;
 	box-shadow: 0 -2px 3px rgba(0, 0, 0, 0.05), 4px -1px 1px rgba(0, 0, 0, 0.05);
 	color: #b7ccd5;
-}
-
-.rcp-avatar-holder.rcp-fallback,
-.rcp-fallback .rcp-avatar-holder {
-	background-color: #252a30;
-	border: 1px solid #4f6168;
-	border-radius: 2px;
-}
-
-.rcp-avatar.rcp-fallback,
-.rcp-avatar-fallback.rcp-fallback,
-.rcp-fallback .rcp-avatar,
-.rcp-fallback .rcp-avatar-fallback {
-	border-radius: 2px;
-}
-
-.rcp-avatar-fallback.rcp-fallback,
-.rcp-fallback .rcp-avatar-fallback {
-	color: #6dcff6;
-	font-size: 17px;
-	font-weight: 500;
-}
-
-.rcp-name.rcp-fallback,
-.rcp-fallback .rcp-name {
-	color: #d6d7d8;
-	font-size: 14px;
-	font-weight: 500;
-	line-height: 19px;
-}
-
-.rcp-snippet.rcp-fallback,
-.rcp-fallback .rcp-snippet {
-	color: #4f91ac;
-	font-size: 12px;
-	font-weight: 400;
-	line-height: 17px;
 }
 `;
