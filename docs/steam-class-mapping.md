@@ -61,6 +61,8 @@ html[data-recent-chats-poc-open]
 
 The injected tab is a `div[role=tab][tabindex="0"]`, matching Steam's element type and avoiding browser button chrome. Click, Enter, and Space handling stays in the popup's native DOM. If no sibling can be copied, `rcp-fallback` supplies the whole tab appearance.
 
+Valve defines no desktop `.socialListTab:hover` rule and sets the base cursor to `default`. Recent Chats overrides the cursor to `pointer` and animates a `currentColor` overlay on hover and keyboard focus. The overlay is omitted for the active and fallback states, uses the copied tab's theme color, and disables its transition under `prefers-reduced-motion`.
+
 ## Search and refresh toolbar
 
 | Retained class | Matching desktop selector and required context | Native contribution |
@@ -142,6 +144,6 @@ The list container itself paints the Image 2 background. The panel remains trans
 
 ## Plugin-owned properties
 
-The plugin always owns the 58px row grid, 42px avatar box, ellipsis, timestamp/meta placement, keyboard focus outline, row divider, toolbar layout, and skeleton animation. It also owns visuals with no suitable native source: toolbar background/shadow, neutral name treatment, avatar frame and initials fallback, relative timestamp, empty state, error banner, and the text glyphs/button resets for clear and refresh.
+The plugin always owns the 58px row grid, 42px avatar box, ellipsis, timestamp/meta placement, keyboard focus outline, row divider, toolbar layout, tab hover feedback, and skeleton animation. It also owns visuals with no suitable native source: toolbar background/shadow, neutral name treatment, avatar frame and initials fallback, relative timestamp, empty state, error banner, and the text glyphs/button resets for clear and refresh.
 
 The only resolver-style fallback that remains is the tab sibling copy. It can genuinely fail when the normal header is absent; all other retained native classes are literal and validated above.

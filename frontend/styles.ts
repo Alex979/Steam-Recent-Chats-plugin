@@ -16,8 +16,33 @@ export const FRIENDS_WINDOW_STYLES = `
 
 #recent-chats-poc-tab-host .rcp-tab-button {
 	box-sizing: border-box;
+	cursor: pointer;
 	flex-grow: 0;
+	overflow: hidden;
 	padding-inline-end: 16px;
+	position: relative;
+}
+
+/* Valve has no desktop tab hover rule; currentColor keeps this theme-neutral. */
+#recent-chats-poc-tab-host .rcp-tab-button:not(.rcp-fallback)::before {
+	background-color: currentColor;
+	content: '';
+	inset: 0;
+	opacity: 0;
+	pointer-events: none;
+	position: absolute;
+	transition: opacity 180ms ease-in-out;
+	z-index: 0;
+}
+
+#recent-chats-poc-tab-host .rcp-tab-button:not(.rcp-fallback):not(.activeTab):hover::before,
+#recent-chats-poc-tab-host .rcp-tab-button:not(.rcp-fallback):not(.activeTab):focus-visible::before {
+	opacity: 0.32;
+}
+
+#recent-chats-poc-tab-host .rcp-tab-button .tabLabel {
+	position: relative;
+	z-index: 1;
 }
 
 html[data-recent-chats-poc-open] .socialTabContainer .friendTab.activeTab:not(.rcp-tab-button) {
@@ -273,6 +298,10 @@ html[data-recent-chats-poc-open] #recent-chats-poc-panel-host.rcp-content-fallba
 }
 
 @media (prefers-reduced-motion: reduce) {
+	#recent-chats-poc-tab-host .rcp-tab-button:not(.rcp-fallback)::before {
+		transition: none;
+	}
+
 	.rcp-snippet-skeleton {
 		animation: none;
 		opacity: 0.75;
