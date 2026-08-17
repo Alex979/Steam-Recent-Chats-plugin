@@ -15,9 +15,8 @@ A native class is kept only when a desktop rule matches the element's real tag, 
 ## Effective injected structure
 
 ```text
-div#recent-chats-poc-tab-host
-  div.friendTab.socialListTab.rcp-tab-button[.activeTab]
-    span.tabLabel
+div#recent-chats-poc-tab-host.friendTab.socialListTab.rcp-tab-button[.activeTab]
+  span.tabLabel
 
 div.rcp-panel.FriendsListContent
   div.rcp-toolbar
@@ -51,6 +50,8 @@ The tab's native classes are copied from the live sibling. The diagram shows the
 | `activeTab` | `.activeTab` | Active background `#434953`, top/side shadow, and text color `#b7ccd5`; the high-contrast media rule substitutes black/white with top and bottom borders. |
 | `tabLabel` | `.socialListTab .tabLabel` | Opacity and the label transition. |
 | `friendTab` | No rule in Valve's stylesheet | Deliberate exception: it is a native markup and Millennium-theme hook. It is copied from the live sibling even though Valve does not style it directly. |
+
+The tab element is itself the host (`#recent-chats-poc-tab-host`) and mounts as a direct sibling of the native tab: a wrapper div changes the flex context, which let themes size the injected tab differently from the native one. Its inline padding is symmetric (`padding-inline`) so the label stays centered under any theme's start padding.
 
 `copyNativeTabClassName` removes `activeTab` and every search-state token, then preserves the sibling's remaining tokens. Extra copied tokens may be supplied only by a Millennium theme; copying the live sibling preserves the exact native context even when Valve's base stylesheet has no corresponding rule. `rcp-tab-button` is always appended so the native-tab suppression rule can exclude the injected tab:
 
@@ -144,6 +145,6 @@ The list container itself paints the Image 2 background. The panel remains trans
 
 ## Plugin-owned properties
 
-The plugin always owns the 58px row grid, 42px avatar box, ellipsis, timestamp/meta placement, keyboard focus outline, row divider, toolbar layout, tab hover feedback, and skeleton animation. It also owns visuals with no suitable native source: toolbar background/shadow, neutral name treatment, avatar frame and initials fallback, relative timestamp, empty state, error banner, and the text glyphs/button resets for clear and refresh.
+The plugin always owns the 58px row grid, 42px avatar box, ellipsis, timestamp/meta placement, keyboard focus outline, row divider, toolbar layout, tab hover feedback, and skeleton animation. It also owns visuals with no suitable native source: toolbar background/shadow (a translucent neutral so it blends with themed backgrounds), neutral name treatment, avatar frame and initials fallback, relative timestamp, empty state, error banner, and the text glyphs/button resets for clear and refresh. The list keeps `scrollbar-gutter: stable` because themes that mirror the native list may zero the container's scrollbar-side padding; the reserved gutter keeps rows visually inset either way.
 
 The only resolver-style fallback that remains is the tab sibling copy. It can genuinely fail when the normal header is absent; all other retained native classes are literal and validated above.

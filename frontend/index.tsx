@@ -457,16 +457,18 @@ function mountFriendsDocument(
 	removeOrphanedInjection(document);
 	ensureStyle(document);
 
-	const tabHost = document.createElement('div');
-	tabHost.id = TAB_HOST_ID;
-	if (!header.classList.contains('socialTabContainer')) tabHost.classList.add('rcp-header-fallback');
-	header.append(tabHost);
-
+	// The tab is its own host element and mounts as a direct sibling of the
+	// native tab: wrapper divs change the flex context, so theme rules sized
+	// the injected tab differently from the native one.
+	const nativeTab = header.querySelector<HTMLElement>('.friendTab');
 	const tabButton = document.createElement('div');
-	const nativeTabClassName = copyNativeTabClassName(header.querySelector<HTMLElement>('.friendTab')?.className);
+	const tabHost = tabButton;
+	tabButton.id = TAB_HOST_ID;
+	const nativeTabClassName = copyNativeTabClassName(nativeTab?.className);
 	tabButton.className = nativeTabClassName
 		? `${nativeTabClassName} rcp-tab-button`
 		: 'rcp-tab-button rcp-fallback';
+	if (!header.classList.contains('socialTabContainer')) tabButton.classList.add('rcp-header-fallback');
 	tabButton.setAttribute('role', 'tab');
 	tabButton.tabIndex = 0;
 	tabButton.setAttribute('aria-selected', 'false');
@@ -475,7 +477,7 @@ function mountFriendsDocument(
 	tabLabel.className = 'tabLabel';
 	tabLabel.textContent = 'Chats';
 	tabButton.append(tabLabel);
-	tabHost.append(tabButton);
+	(nativeTab?.parentElement ?? header).append(tabButton);
 
 	const panelHost = document.createElement('div');
 	panelHost.id = PANEL_HOST_ID;

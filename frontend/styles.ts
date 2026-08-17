@@ -1,9 +1,15 @@
 export const FRIENDS_WINDOW_STYLES = `
+/* The tab is its own host element, mounted as a direct sibling of the native
+ * tab so Valve and theme rules size both identically. Symmetric inline padding
+ * keeps the label centered whatever start padding a theme sets. */
 #recent-chats-poc-tab-host {
-	align-self: stretch;
-	display: flex;
-	flex: 0 0 auto;
-	margin-left: auto;
+	box-sizing: border-box;
+	cursor: pointer;
+	flex-grow: 0;
+	margin-inline-start: auto;
+	overflow: hidden;
+	padding-inline: 16px;
+	position: relative;
 }
 
 #recent-chats-poc-tab-host.rcp-header-fallback {
@@ -14,17 +20,8 @@ export const FRIENDS_WINDOW_STYLES = `
 	z-index: 20;
 }
 
-#recent-chats-poc-tab-host .rcp-tab-button {
-	box-sizing: border-box;
-	cursor: pointer;
-	flex-grow: 0;
-	overflow: hidden;
-	padding-inline-end: 16px;
-	position: relative;
-}
-
 /* Valve has no desktop tab hover rule; currentColor keeps this theme-neutral. */
-#recent-chats-poc-tab-host .rcp-tab-button:not(.rcp-fallback)::before {
+#recent-chats-poc-tab-host:not(.rcp-fallback)::before {
 	background-color: currentColor;
 	content: '';
 	inset: 0;
@@ -35,12 +32,12 @@ export const FRIENDS_WINDOW_STYLES = `
 	z-index: 0;
 }
 
-#recent-chats-poc-tab-host .rcp-tab-button:not(.rcp-fallback):not(.activeTab):hover::before,
-#recent-chats-poc-tab-host .rcp-tab-button:not(.rcp-fallback):not(.activeTab):focus-visible::before {
+#recent-chats-poc-tab-host:not(.rcp-fallback):not(.activeTab):hover::before,
+#recent-chats-poc-tab-host:not(.rcp-fallback):not(.activeTab):focus-visible::before {
 	opacity: 0.32;
 }
 
-#recent-chats-poc-tab-host .rcp-tab-button .tabLabel {
+#recent-chats-poc-tab-host .tabLabel {
 	position: relative;
 	z-index: 1;
 }
@@ -77,10 +74,11 @@ html[data-recent-chats-poc-open] #recent-chats-poc-panel-host.rcp-content-fallba
 	min-height: 0;
 }
 
-/* Steam has no always-open desktop search-toolbar class without growth/state side effects. */
+/* Steam has no always-open desktop search-toolbar class without growth/state
+ * side effects; a translucent neutral background blends with any theme. */
 .rcp-toolbar {
 	align-items: center;
-	background: #282d33;
+	background: rgba(0, 0, 0, 0.2);
 	box-shadow: 0 2px 4px rgba(0, 0, 0, 0.22);
 	display: flex;
 	flex: 0 0 auto;
@@ -166,11 +164,14 @@ html[data-recent-chats-poc-open] #recent-chats-poc-panel-host.rcp-content-fallba
 	padding: 5px 10px;
 }
 
+/* A stable gutter keeps themes that drop the container's scrollbar-side
+ * padding (matching the native list) from rendering our rows flush-right. */
 .rcp-list {
 	flex: 1 1 auto;
 	min-height: 0;
 	overflow-x: hidden;
 	overflow-y: auto;
+	scrollbar-gutter: stable;
 }
 
 .rcp-list-content,
@@ -298,7 +299,7 @@ html[data-recent-chats-poc-open] #recent-chats-poc-panel-host.rcp-content-fallba
 }
 
 @media (prefers-reduced-motion: reduce) {
-	#recent-chats-poc-tab-host .rcp-tab-button:not(.rcp-fallback)::before {
+	#recent-chats-poc-tab-host:not(.rcp-fallback)::before {
 		transition: none;
 	}
 
@@ -336,7 +337,7 @@ html[data-recent-chats-poc-open] #recent-chats-poc-panel-host.rcp-content-fallba
 }
 
 /* The tab fallback is used only when no live desktop sibling can be copied. */
-#recent-chats-poc-tab-host .rcp-tab-button.rcp-fallback {
+#recent-chats-poc-tab-host.rcp-fallback {
 	align-items: center;
 	background: transparent;
 	border: 0;
@@ -355,16 +356,16 @@ html[data-recent-chats-poc-open] #recent-chats-poc-panel-host.rcp-content-fallba
 	transition: background-color 233ms ease-in-out, box-shadow 233ms ease-in-out, color 233ms ease-in-out;
 }
 
-.compactView #recent-chats-poc-tab-host .rcp-tab-button.rcp-fallback {
+.compactView #recent-chats-poc-tab-host.rcp-fallback {
 	height: 24px;
 }
 
-#recent-chats-poc-tab-host .rcp-tab-button.rcp-fallback:hover {
+#recent-chats-poc-tab-host.rcp-fallback:hover {
 	background-color: rgba(67, 73, 83, 0.55);
 	color: #b7ccd5;
 }
 
-#recent-chats-poc-tab-host .rcp-tab-button.rcp-fallback.activeTab {
+#recent-chats-poc-tab-host.rcp-fallback.activeTab {
 	background-color: #434953;
 	box-shadow: 0 -2px 3px rgba(0, 0, 0, 0.05), 4px -1px 1px rgba(0, 0, 0, 0.05);
 	color: #b7ccd5;
