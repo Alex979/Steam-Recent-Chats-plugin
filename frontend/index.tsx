@@ -16,12 +16,13 @@ import {
 	createNativeTabActiveController,
 	NativeTabActiveController,
 } from './steam-class-logic';
-import { FRIENDS_WINDOW_STYLES } from './styles';
+import { FRIENDS_WINDOW_STYLES, THEMED_FALLBACK_STYLES } from './styles';
 
 const LOG_PREFIX = '[Recent Chats]';
 const TAB_HOST_ID = 'recent-chats-poc-tab-host';
 const PANEL_HOST_ID = 'recent-chats-poc-panel-host';
 const STYLE_ID = 'recent-chats-poc-styles';
+const THEME_FALLBACK_STYLE_ID = 'recent-chats-poc-theme-fallback';
 const OPEN_ATTRIBUTE = 'data-recent-chats-poc-open';
 const DOCUMENT_RECONCILE_INTERVAL_MS = 500;
 const STARTUP_RECONCILE_INTERVAL_MS = 50;
@@ -453,13 +454,26 @@ const THEMED_CLASS = 'rcp-themed';
 // This per-document link distinguishes themed popups from Millennium's Quick
 // CSS marker, which is also present with Steam's default theme.
 function updateThemeDetection(document: Document): void {
-	let themed = false;
+	let themeLink: Element | null = null;
 	try {
-		themed = document.querySelector('link#millennium-injected') !== null;
+		themeLink = document.querySelector('link#millennium-injected');
 	} catch {
-		themed = false;
+		themeLink = null;
 	}
-	document.documentElement.classList.toggle(THEMED_CLASS, themed);
+	document.documentElement.classList.toggle(THEMED_CLASS, themeLink !== null);
+
+	// The fallback sheet must precede the theme stylesheet so theme rules win by
+	// source order; the main plugin sheet is appended after it and cannot do this.
+	const fallback = document.getElementById(THEME_FALLBACK_STYLE_ID);
+	if (!themeLink) {
+		fallback?.remove();
+		return;
+	}
+	if (fallback) return;
+	const style = document.createElement('style');
+	style.id = THEME_FALLBACK_STYLE_ID;
+	style.textContent = THEMED_FALLBACK_STYLES;
+	themeLink.before(style);
 }
 
 function removeOrphanedInjection(document: Document): void {
@@ -468,6 +482,7 @@ function removeOrphanedInjection(document: Document): void {
 	document.getElementById(TAB_HOST_ID)?.remove();
 	document.getElementById(PANEL_HOST_ID)?.remove();
 	document.getElementById(STYLE_ID)?.remove();
+	document.getElementById(THEME_FALLBACK_STYLE_ID)?.remove();
 }
 
 function applyTabClasses(tabHost: HTMLElement, nativeClassName: string | null | undefined): void {
@@ -601,6 +616,9 @@ function disposeMountedWindow(mounted: MountedWindow): void {
 	cleanupStep('remove the Chats tab', () => mounted.tabHost.remove());
 	cleanupStep('remove the Chats panel host', () => mounted.panelHost.remove());
 	cleanupStep('remove the Chats styles', () => mounted.document.getElementById(STYLE_ID)?.remove());
+	cleanupStep('remove the themed fallback styles', () =>
+		mounted.document.getElementById(THEME_FALLBACK_STYLE_ID)?.remove(),
+	);
 }
 
 function currentPopupDocument(popupWindow: Window): Document | undefined {

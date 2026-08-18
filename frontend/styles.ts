@@ -1,3 +1,18 @@
+/* Injected only into themed documents, positioned before Millennium's theme
+   stylesheet: source order lets it beat Steam's default field colors while any
+   theme rule of at least Steam's own specificity still overrides it. */
+export const THEMED_FALLBACK_STYLES = `
+.rcp-search.friendSearchInput {
+	background-color: rgba(0, 0, 0, 0.25);
+	color: inherit;
+}
+
+.rcp-search.friendSearchInput:focus {
+	background-color: rgba(0, 0, 0, 0.25);
+	color: inherit;
+}
+`;
+
 export const FRIENDS_WINDOW_STYLES = `
 #recent-chats-poc-tab-host {
 	/* Match the native tab when themes add vertical padding. */

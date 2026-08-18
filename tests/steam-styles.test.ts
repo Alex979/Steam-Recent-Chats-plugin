@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 
-import { FRIENDS_WINDOW_STYLES } from '../frontend/styles';
+import { FRIENDS_WINDOW_STYLES, THEMED_FALLBACK_STYLES } from '../frontend/styles';
 
 function getRuleBody(selector: string): string {
 	const escapedSelector = selector.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -18,6 +18,16 @@ describe('Steam style integration', () => {
 			'html.rcp-themed .rcp-toolbar .rcp-search.friendSearchInput',
 		);
 		expect(getRuleBody('.rcp-name')).not.toContain('color:');
+	});
+
+	test('keeps the themed search fallback at theme-overridable specificity', () => {
+		expect(THEMED_FALLBACK_STYLES).toContain('.rcp-search.friendSearchInput {');
+		expect(THEMED_FALLBACK_STYLES).toContain('.rcp-search.friendSearchInput:focus {');
+		expect(THEMED_FALLBACK_STYLES).toContain('background-color: rgba(0, 0, 0, 0.25);');
+		expect(THEMED_FALLBACK_STYLES).toContain('color: inherit;');
+		// Anything above two classes would outrank Steam's own field selector.
+		expect(THEMED_FALLBACK_STYLES).not.toContain('html');
+		expect(THEMED_FALLBACK_STYLES).not.toContain('.rcp-toolbar');
 	});
 
 	test('resets native unread width so themed margins remain inside the list', () => {
