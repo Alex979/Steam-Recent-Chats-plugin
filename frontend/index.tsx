@@ -140,6 +140,8 @@ function sameConversations(left: RecentConversation[], right: RecentConversation
 			conversation.unread === other.unread &&
 			conversation.avatarUrl === other.avatarUrl &&
 			conversation.accountId === other.accountId &&
+			conversation.presence === other.presence &&
+			conversation.awayOrSnooze === other.awayOrSnooze &&
 			conversation.raw === other.raw
 		);
 	});
@@ -328,7 +330,17 @@ function RecentChatsPanel({ document, popupWindow, browserContext }: RecentChats
 							key={conversation.id}
 						>
 							<div
-								className="rcp-row friend friendStatusHover online"
+								className={joinClasses(
+									'rcp-row',
+									'friend',
+									'friendStatusHover',
+									conversation.kind === 'group'
+										? 'rcp-group'
+										: conversation.presence === 'unknown'
+											? 'rcp-presence-unknown'
+											: conversation.presence,
+									conversation.kind === 'friend' && conversation.awayOrSnooze && 'awayOrSnooze',
+								)}
 								role="button"
 								tabIndex={0}
 								onClick={() => store && openConversation(store, conversation, popupWindow, browserContext)}

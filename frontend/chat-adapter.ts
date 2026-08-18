@@ -9,7 +9,7 @@ export interface SteamRootStore extends UnknownRecord {
 	UIStore?: UnknownRecord;
 }
 
-export type ConversationKind = 'friend' | 'group';
+export type ConversationPresence = 'ingame' | 'watchingbroadcast' | 'online' | 'offline' | 'unknown';
 export type PreviewState = 'pending' | 'ready' | 'unavailable';
 
 export const NO_MESSAGE_PREVIEW = 'No message preview';
@@ -19,18 +19,32 @@ export interface PendingPreviewTiming {
 	timestamp: number;
 }
 
-export interface RecentConversation {
+interface ConversationBase {
 	id: string;
-	kind: ConversationKind;
 	name: string;
 	snippet: string;
 	previewState: PreviewState;
 	timestamp: number;
 	unread: number;
 	avatarUrl?: string;
-	accountId?: number;
 	raw: UnknownRecord;
 }
+
+export interface FriendConversation extends ConversationBase {
+	kind: 'friend';
+	presence: ConversationPresence;
+	awayOrSnooze: boolean;
+	accountId?: number;
+}
+
+export interface GroupConversation extends ConversationBase {
+	kind: 'group';
+	presence?: never;
+	awayOrSnooze?: never;
+	accountId?: never;
+}
+
+export type RecentConversation = FriendConversation | GroupConversation;
 
 function safely<T>(read: () => T, fallback: T): T {
 	try {
@@ -193,7 +207,24 @@ function previewState(message: string, timestamp: number): PreviewState {
 	return timestamp > 0 ? 'pending' : 'unavailable';
 }
 
-function directConversation(chat: UnknownRecord, store: SteamRootStore, selfAccountId: number): RecentConversation {
+function directPresence(persona: UnknownRecord): ConversationPresence {
+	if (safely(() => persona.m_bStatusInitialized === false, false)) return 'unknown';
+	const hasPersonaData = safely(
+		() =>
+			Reflect.ownKeys(persona).length > 0 ||
+			'is_ingame' in persona ||
+			'is_watchingbroadcast' in persona ||
+			'is_online' in persona,
+		false,
+	);
+	if (!hasPersonaData) return 'unknown';
+	if (safely(() => Boolean(persona.is_ingame), false)) return 'ingame';
+	if (safely(() => Boolean(persona.is_watchingbroadcast), false)) return 'watchingbroadcast';
+	if (safely(() => Boolean(persona.is_online), false)) return 'online';
+	return 'offline';
+}
+
+function directConversation(chat: UnknownRecord, store: SteamRootStore, selfAccountId: number): FriendConversation {
 	const accountId = getDirectAccountId(chat);
 	const friend = safely(() => chat.chat_partner, {} as UnknownRecord);
 	const persona = safely(() => friend.persona, {} as UnknownRecord);
@@ -209,10 +240,13 @@ function directConversation(chat: UnknownRecord, store: SteamRootStore, selfAcco
 		isOutgoing: senderAccountId > 0 && senderAccountId === selfAccountId,
 	});
 	const state = previewState(snippet, timestamp);
+	const presence = directPresence(persona);
 
 	return {
 		id: `friend:${accountId || stringifyId(chat.unique_id)}`,
 		kind: 'friend',
+		presence,
+		awayOrSnooze: presence !== 'unknown' && safely(() => Boolean(persona.is_awayOrSnooze), false),
 		name: safely(() => friend.display_name, '') || safely(() => persona.m_strPlayerName, '') || 'Unknown friend',
 		snippet: snippet || (state === 'unavailable' ? NO_MESSAGE_PREVIEW : ''),
 		previewState: state,
@@ -241,7 +275,7 @@ function getGroupUnread(group: UnknownRecord): number {
 	return safely(() => (group.hasUnreadChatMessage ? 1 : 0), 0);
 }
 
-function groupConversation(group: UnknownRecord, store: SteamRootStore, selfAccountId: number): RecentConversation {
+function groupConversation(group: UnknownRecord, store: SteamRootStore, selfAccountId: number): GroupConversation {
 	const room = getGroupLastRoom(group);
 	const loadedMessage = latestLoadedMessage(room);
 	const senderAccountId = asFiniteNumber(

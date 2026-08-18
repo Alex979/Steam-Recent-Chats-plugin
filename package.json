@@ -3,7 +3,7 @@
         "dev": "millennium-ttc --build dev",
         "build": "millennium-ttc --build prod",
         "release": "bun scripts/release.ts",
-        "typecheck": "tsc --noEmit -p frontend/tsconfig.json && tsc --noEmit -p scripts/tsconfig.json",
+        "typecheck": "tsc --noEmit -p frontend/tsconfig.json && tsc --noEmit -p scripts/tsconfig.json && tsc --noEmit -p tests/tsconfig.json",
         "test": "bun test"
     },
     "devDependencies": {

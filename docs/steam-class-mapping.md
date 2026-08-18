@@ -28,7 +28,7 @@ div.rcp-panel.FriendsListContent
   div.rcp-list.friendlistListContainer
     div.rcp-list-content.listContentContainer.friendGroup
       div.rcp-row-wrapper[.unreadFriend]
-        div.rcp-row.friend.friendStatusHover.online
+        div.rcp-row.friend.friendStatusHover.(online|ingame|watchingbroadcast|offline|rcp-presence-unknown|rcp-group)[.awayOrSnooze]
           span.rcp-avatar-holder.avatarHolder
             img.rcp-avatar.avatar
           span.rcp-copy
@@ -87,11 +87,15 @@ The toolbar itself is plugin-owned. No native always-open toolbar fits this DOM 
 | `friendGroup` | `.FriendsListContent .friendlistListContainer>.friendGroup:first-child` — wrapper must be the list's first direct child | Transparent top border and zero top margin. |
 | `friend` | `.friend` | Base friend color, flex display, neutral box shadow, and interaction transitions. |
 | `friend` | `.friendGroup .friend` — requires the `friendGroup` ancestor | Native 38px height, margins, padding, and row direction. Recent Chats overrides only this geometry with an equal-specificity 58px grid rule. |
-| `online` | `.friend.online` | Online color `#6dcff6`, inherited where a child has no more specific color. |
-| `friendStatusHover` + `online` | `.friendStatusHover.online:hover,.friendStatusHover.online.Friend_ContextMenuActive` | Native online-row hover background `rgba(36,52,64,.3)`. |
-| `status` | `.currentUserContainer.online .status,.friend.online .status` — the second selector matches | Darker online detail color `#4c91ac` for the message snippet. |
+| `online`, `ingame`, `offline` | `.friend.online`, `.friend.ingame`, `.friend.offline` | Persona-aware row color inherited by the title. Offline also activates Valve's avatar dimming, which `friendStatusHover` restores on hover. |
+| `watchingbroadcast` | `.friend.watchingbroadcast` | Purple broadcast title. Valve provides no matching friend-row detail or hover rule, so plugin CSS supplies a default-Steam detail color and a translucent hover in all themes. Themed detail text inherits the theme and uses reduced opacity for contrast. |
+| `awayOrSnooze` | `.friend.awayOrSnooze .labelHolder` targets markup Recent Chats deliberately omits | Preserves Steam's semantic state token. Plugin CSS mirrors the native 50% label opacity and transition on `rcp-copy`, including for in-game-away friends. |
+| `friendStatusHover` + presence | Valve's online, in-game, and offline hover selectors | Native presence-appropriate hover background and offline-avatar hover restoration. |
+| `status` | `.friend.online .status`, `.friend.ingame .status` | Darker native presence color for the message snippet. |
+| `rcp-presence-unknown` | Plugin-owned | Neutral, non-dimmed cold-start state used until Steam resolves a direct chat partner's persona. It has a neutral detail color and hover rather than impersonating offline. |
+| `rcp-group` | Plugin-owned | Group conversations deliberately do not impersonate a persona state. Default Steam gets its group-list foreground palette; themes supply the inherited neutral foreground while plugin CSS keeps secondary-text contrast and a translucent hover. |
 
-Steam supplies no validated literal desktop rule for the desired two-line typography. `.rcp-name` therefore owns only its size, weight, and line height while inheriting the native/theme row color; `.rcp-snippet` likewise owns only typography while `status` supplies its native/theme color.
+Resolved direct rows mirror Valve's own classifier: in-game, then watching a broadcast, then online, otherwise offline; `awayOrSnooze` is appended independently. Missing, empty, or explicitly uninitialized persona objects use the neutral `rcp-presence-unknown` state until a later poll resolves them. Steam supplies no validated literal desktop rule for the desired two-line typography. `.rcp-name` therefore owns only its size, weight, and line height while inheriting the native/theme row color; `.rcp-snippet` likewise owns only typography while `status` supplies its native/theme color. Group rows derive `rcp-group` from `kind` instead of storing a fake persona presence because member presence cannot describe a whole conversation.
 
 The `friendGroup` ancestor is intentional, but Steam's `.friendGroup .friend` has higher specificity than a single `rcp-row` class. The plugin's `.friendGroup .rcp-row` explicitly restores the 58px height, grid columns, margins, padding, and `width:auto` used by Recent Chats. The width reset also overrides `.unreadFriend .friend { width:100% }`, so themes that force row margins (`margin: 2px 16px !important` floating-row designs) inset both read and unread rows instead of pushing them past the card edge.
 
@@ -102,7 +106,7 @@ The `friendGroup` ancestor is intentional, but Steam's `.friendGroup .friend` ha
 | `avatarHolder` | `.friendlistListContainer .friend .avatarHolder` | Relative positioning and 2px end padding. The plugin neutralizes the padding so its image remains a full 42px. |
 | `avatar` | `.friend .avatarHolder img.avatar` — requires an `img` inside the holder inside `friend`; active only from `1.5dppx` through `2dppx` | Native border width `.5px` within that resolution range. |
 
-No literal desktop rule supplies the required 42px size, base border width/style/color, radius, or fallback frame. Those properties remain on `rcp-avatar-holder`, `rcp-avatar`, and `rcp-avatar-fallback`; the plugin uses a 1px base border and mirrors Steam's `.5px` rule from `1.5dppx` through `2dppx`.
+No literal desktop rule supplies the required 42px size, base border width/style/color, radius, fallback frame, or filter transition. Those properties remain on `rcp-avatar-holder`, `rcp-avatar`, and `rcp-avatar-fallback`; the plugin uses a 1px base border, mirrors Steam's `.5px` rule from `1.5dppx` through `2dppx`, and copies the native avatar component's `filter 0.24s ease-in-out` timing so offline dimming animates in both directions. Fallback initials inherit the row's presence color and have plugin equivalents of Valve's image-only offline dim/hover selectors.
 
 ## Unread badge
 

@@ -241,6 +241,43 @@ html:not(.rcp-themed) .rcp-toolbar .rcp-search.friendSearchInput {
 	width: auto;
 }
 
+/* Valve has no broadcast detail or hover rules for friend rows. */
+html:not(.rcp-themed) .friendGroup .rcp-row.watchingbroadcast .status {
+	color: #8277b1;
+}
+
+.friendGroup .rcp-row.friendStatusHover.watchingbroadcast:hover,
+.friendGroup .rcp-row.friendStatusHover.watchingbroadcast.Friend_ContextMenuActive {
+	background-color: rgba(60, 53, 86, 0.3);
+}
+
+/* A group has no single persona presence, so keep its row deliberately neutral. */
+html:not(.rcp-themed) .friendGroup .rcp-row.rcp-group {
+	color: #c5d6d4;
+}
+
+html:not(.rcp-themed) .friendGroup .rcp-row.rcp-group .status {
+	color: #8a9997;
+}
+
+.friendGroup .rcp-row.friendStatusHover.rcp-presence-unknown:hover,
+.friendGroup .rcp-row.friendStatusHover.rcp-presence-unknown.Friend_ContextMenuActive,
+.friendGroup .rcp-row.friendStatusHover.rcp-group:hover,
+.friendGroup .rcp-row.friendStatusHover.rcp-group.Friend_ContextMenuActive {
+	background-color: rgba(47, 56, 68, 0.5);
+}
+
+/* Theme colors still flow through the row; opacity supplies secondary-text contrast. */
+html.rcp-themed .friendGroup .rcp-row.rcp-presence-unknown .status,
+html.rcp-themed .friendGroup .rcp-row.watchingbroadcast .status,
+html.rcp-themed .friendGroup .rcp-row.rcp-group .status {
+	opacity: 0.72;
+}
+
+html:not(.rcp-themed) .friendGroup .rcp-row.rcp-presence-unknown .status {
+	color: #8a9997;
+}
+
 .rcp-row:focus-visible {
 	outline: 1px solid currentColor;
 	outline-offset: -1px;
@@ -258,6 +295,7 @@ html:not(.rcp-themed) .rcp-toolbar .rcp-search.friendSearchInput {
 	box-sizing: border-box;
 	height: 100%;
 	object-fit: cover;
+	transition: filter 0.24s ease-in-out;
 	width: 100%;
 }
 
@@ -280,11 +318,20 @@ html:not(.rcp-themed) .rcp-toolbar .rcp-search.friendSearchInput {
 	background: #252a30;
 	border: 1px solid #4f6168;
 	border-radius: 2px;
-	color: #6dcff6;
+	color: inherit;
 	display: flex;
 	font-size: 17px;
 	font-weight: 500;
 	justify-content: center;
+}
+
+.friend.offline .rcp-avatar-fallback {
+	filter: brightness(60%) saturate(50%);
+}
+
+.friend.offline:hover .rcp-avatar-fallback,
+.friend.offline.Friend_ContextMenuActive .rcp-avatar-fallback {
+	filter: brightness(100%) saturate(100%);
 }
 
 .friend .rcp-copy {
@@ -294,6 +341,14 @@ html:not(.rcp-themed) .rcp-toolbar .rcp-search.friendSearchInput {
 	height: auto;
 	margin: 0;
 	min-width: 0;
+	transition-delay: 0.2s;
+	transition-duration: 0.24s;
+	transition-property: transform, opacity;
+	transition-timing-function: ease-in-out;
+}
+
+.friend.awayOrSnooze .rcp-copy {
+	opacity: 0.5;
 }
 
 .rcp-name,
