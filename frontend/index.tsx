@@ -11,7 +11,11 @@ import {
 	SteamRootStore,
 } from './chat-adapter';
 import { classifyFriendsWindow, FriendsWindowTarget } from './friends-window';
-import { copyNativeTabClassName } from './steam-class-logic';
+import {
+	copyNativeTabClassName,
+	createNativeTabActiveController,
+	NativeTabActiveController,
+} from './steam-class-logic';
 import { FRIENDS_WINDOW_STYLES } from './styles';
 
 const LOG_PREFIX = '[Recent Chats]';
@@ -42,6 +46,7 @@ interface MountedWindow {
 	panelHost: HTMLElement;
 	header: HTMLElement;
 	closeFromNativeHeader: EventListener;
+	nativeTabActive: NativeTabActiveController;
 }
 
 interface FriendsAnchors {
@@ -521,11 +526,16 @@ function mountFriendsDocument(
 	panelHost.setAttribute('role', 'tabpanel');
 	if (contentIsFallback) panelHost.classList.add('rcp-content-fallback');
 	contentParent.insertBefore(panelHost, content);
+	const nativeTabActive = createNativeTabActiveController(
+		() => header.querySelector<HTMLElement>('.friendTab:not(.rcp-tab-button)')?.classList,
+	);
 
 	const setOpen = (open: boolean) => {
 		const wasOpen = document.documentElement.hasAttribute(OPEN_ATTRIBUTE);
 		if (open) document.documentElement.setAttribute(OPEN_ATTRIBUTE, 'true');
 		else document.documentElement.removeAttribute(OPEN_ATTRIBUTE);
+		if (open) nativeTabActive.suppress();
+		else nativeTabActive.restore();
 		tabHost.classList.toggle('activeTab', open);
 		tabHost.setAttribute('aria-selected', String(open));
 		if (wasOpen !== open) console.info(LOG_PREFIX, open ? 'Opened Chats panel' : 'Closed Chats panel');
@@ -559,7 +569,17 @@ function mountFriendsDocument(
 		`(${target.kind}) using ${contentIsFallback ? 'fallback' : 'primary'} anchors`,
 	);
 
-	return { generation, popupWindow, document, root, tabHost, panelHost, header, closeFromNativeHeader };
+	return {
+		generation,
+		popupWindow,
+		document,
+		root,
+		tabHost,
+		panelHost,
+		header,
+		closeFromNativeHeader,
+		nativeTabActive,
+	};
 }
 
 function cleanupStep(description: string, action: () => void): void {
@@ -572,6 +592,7 @@ function cleanupStep(description: string, action: () => void): void {
 
 function disposeMountedWindow(mounted: MountedWindow): void {
 	cleanupStep('clear the open state', () => mounted.document.documentElement.removeAttribute(OPEN_ATTRIBUTE));
+	cleanupStep('restore the native tab state', () => mounted.nativeTabActive.restore());
 	cleanupStep('clear the theme marker', () => mounted.document.documentElement.classList.remove(THEMED_CLASS));
 	cleanupStep('remove the native-header listener', () =>
 		mounted.header.removeEventListener('click', mounted.closeFromNativeHeader),
@@ -651,6 +672,9 @@ async function monitorFriendsWindow(context: PopupContext, generation: number): 
 			if (activeMount) {
 				refreshFallbackTabClasses(activeMount);
 				updateThemeDetection(activeMount.document);
+				if (activeMount.document.documentElement.hasAttribute(OPEN_ATTRIBUTE)) {
+					activeMount.nativeTabActive.suppress();
+				}
 			}
 
 			await delay(reconcileInterval);

@@ -41,13 +41,6 @@ export const FRIENDS_WINDOW_STYLES = `
 	z-index: 1;
 }
 
-html[data-recent-chats-poc-open] .socialTabContainer .friendTab.activeTab:not(.rcp-tab-button) {
-	background-color: transparent;
-	box-shadow: none;
-	/* Only Chats should retain the selected label color. */
-	color: #40474a;
-}
-
 #recent-chats-poc-panel-host {
 	display: none;
 	flex: 1 1 auto;
@@ -119,15 +112,9 @@ html.rcp-themed .rcp-toolbar {
 	padding-inline-end: 25px;
 }
 
-/* Valve's transient field color is too dark for a persistent query. */
-.rcp-toolbar .rcp-search.friendSearchInput {
+/* Valve's transient field color is too dark for a persistent default-Steam query. */
+html:not(.rcp-themed) .rcp-toolbar .rcp-search.friendSearchInput {
 	color: #d6d7d8;
-}
-
-/* Translucent colors let theme backgrounds show through. */
-html.rcp-themed .rcp-toolbar .rcp-search.friendSearchInput {
-	background-color: rgba(0, 0, 0, 0.25);
-	color: inherit;
 }
 
 /* Reset the button and keep it inside Steam's clipped input container. */
@@ -236,6 +223,7 @@ html.rcp-themed .rcp-toolbar .rcp-search.friendSearchInput {
 	min-height: 58px;
 	padding: 7px 9px;
 	text-align: left;
+	width: auto;
 }
 
 .rcp-row:focus-visible {
@@ -263,6 +251,13 @@ html.rcp-themed .rcp-toolbar .rcp-search.friendSearchInput {
 	border-color: #4f6168;
 	border-radius: 2px;
 	border-style: solid;
+	border-width: 1px;
+}
+
+@media only screen and (min-resolution: 1.5dppx) and (max-resolution: 2dppx) {
+	.rcp-avatar {
+		border-width: 0.5px;
+	}
 }
 
 .rcp-avatar-fallback {
@@ -296,7 +291,6 @@ html.rcp-themed .rcp-toolbar .rcp-search.friendSearchInput {
 }
 
 .rcp-name {
-	color: #d6d7d8;
 	font-size: 14px;
 	font-weight: 500;
 	line-height: 19px;

@@ -1,6 +1,18 @@
 import { describe, expect, test } from 'bun:test';
 
-import { copyNativeTabClassName } from '../frontend/steam-class-logic';
+import { copyNativeTabClassName, createNativeTabActiveController } from '../frontend/steam-class-logic';
+
+function createClassList(...initialClasses: string[]) {
+	const classes = new Set(initialClasses);
+	return {
+		classes,
+		classList: {
+			add: (classToken: string) => classes.add(classToken),
+			contains: (classToken: string) => classes.has(classToken),
+			remove: (classToken: string) => classes.delete(classToken),
+		},
+	};
+}
 
 describe('Steam class mapping logic', () => {
 	test('copies a native tab class list without the known state classes', () => {
@@ -20,5 +32,30 @@ describe('Steam class mapping logic', () => {
 		expect(copyNativeTabClassName(null)).toBeUndefined();
 		expect(copyNativeTabClassName('   ')).toBeUndefined();
 		expect(copyNativeTabClassName('activeTab TabSearchActive')).toBeUndefined();
+	});
+
+	test('suppresses and restores the native active state across Steam rerenders', () => {
+		let nativeTab = createClassList('friendTab', 'activeTab');
+		const controller = createNativeTabActiveController(() => nativeTab.classList);
+
+		controller.suppress();
+		expect(nativeTab.classes.has('activeTab')).toBeFalse();
+
+		nativeTab = createClassList('friendTab', 'activeTab');
+		controller.suppress();
+		expect(nativeTab.classes.has('activeTab')).toBeFalse();
+
+		controller.restore();
+		expect(nativeTab.classes.has('activeTab')).toBeTrue();
+	});
+
+	test('does not create an active state that was never suppressed', () => {
+		const nativeTab = createClassList('friendTab');
+		const controller = createNativeTabActiveController(() => nativeTab.classList);
+
+		controller.suppress();
+		controller.restore();
+
+		expect(nativeTab.classes.has('activeTab')).toBeFalse();
 	});
 });
