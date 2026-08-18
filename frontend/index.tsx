@@ -148,7 +148,10 @@ function joinClasses(...classes: Array<string | false | null | undefined>): stri
 }
 
 function ConversationAvatar({ conversation }: { conversation: RecentConversation }) {
-	const [failed, setFailed] = useState(false);
+	// Track the failed URL, not a boolean: a later poll can deliver a fresh
+	// avatarUrl for the same conversation, and the image should retry then.
+	const [failedAvatarUrl, setFailedAvatarUrl] = useState<string>();
+	const failed = !!conversation.avatarUrl && conversation.avatarUrl === failedAvatarUrl;
 
 	return (
 		<span className="rcp-avatar-holder avatarHolder">
@@ -162,7 +165,7 @@ function ConversationAvatar({ conversation }: { conversation: RecentConversation
 					src={conversation.avatarUrl}
 					alt=""
 					draggable={false}
-					onError={() => setFailed(true)}
+					onError={() => setFailedAvatarUrl(conversation.avatarUrl)}
 				/>
 			)}
 		</span>
@@ -390,8 +393,9 @@ function findFriendsAnchors(document: Document): FriendsAnchors | undefined {
 	const header =
 		root.querySelector<HTMLElement>('.socialTabContainer') ??
 		root.querySelector<HTMLElement>('.friendListHeaderContainer');
-	const primaryContent = root.querySelector<HTMLElement>('.FriendsListContent');
-	const fallbackContent = root.querySelector<HTMLElement>('.friendlistListContainer');
+	// The injected panel wears these native classes too; never self-match.
+	const primaryContent = root.querySelector<HTMLElement>('.FriendsListContent:not(.rcp-panel)');
+	const fallbackContent = root.querySelector<HTMLElement>('.friendlistListContainer:not(.rcp-list)');
 	const content = primaryContent ?? fallbackContent;
 
 	if (!header || !content) return undefined;
@@ -443,17 +447,15 @@ function waitForFriendsAnchors(
 
 const THEMED_CLASS = 'rcp-themed';
 
-// Millennium injects active-theme stylesheets from its own origin; their
-// presence distinguishes a themed client from default Steam.
+// Theme CSS that restyles this popup arrives as Millennium's stable
+// <link id="millennium-injected"> marker (id unchanged since v2). Weaker
+// signals are deliberately ignored: the MillenniumQuickCss inline style is
+// injected into every popup even on default Steam, and global theme state
+// says nothing about whether this document's Friends window was restyled.
 function updateThemeDetection(document: Document): void {
 	let themed = false;
 	try {
-		for (const sheet of Array.from(document.styleSheets)) {
-			if (/millennium|\/skins\//i.test(sheet.href ?? '')) {
-				themed = true;
-				break;
-			}
-		}
+		themed = document.querySelector('link#millennium-injected') !== null;
 	} catch {
 		themed = false;
 	}
@@ -466,6 +468,28 @@ function removeOrphanedInjection(document: Document): void {
 	document.getElementById(TAB_HOST_ID)?.remove();
 	document.getElementById(PANEL_HOST_ID)?.remove();
 	document.getElementById(STYLE_ID)?.remove();
+}
+
+// socialListTab carries all of Valve's tab styling; a copy without it cannot
+// style the tab, so the hardcoded fallback appearance must take over.
+function applyTabClasses(tabHost: HTMLElement, nativeClassName: string | null | undefined): void {
+	const copied = copyNativeTabClassName(nativeClassName);
+	const styled = !!copied && copied.split(' ').includes('socialListTab');
+	tabHost.className = joinClasses(
+		copied,
+		'rcp-tab-button',
+		!styled && 'rcp-fallback',
+		tabHost.classList.contains('rcp-header-fallback') && 'rcp-header-fallback',
+		tabHost.classList.contains('activeTab') && 'activeTab',
+	);
+}
+
+// A mount during startup churn can precede the native tab's render; adopt the
+// sibling's classes once it exists instead of pinning the fallback look.
+function refreshFallbackTabClasses(mounted: MountedWindow): void {
+	if (!mounted.tabHost.classList.contains('rcp-fallback')) return;
+	const nativeTab = mounted.header.querySelector<HTMLElement>('.friendTab:not(.rcp-tab-button)');
+	if (nativeTab) applyTabClasses(mounted.tabHost, nativeTab.className);
 }
 
 function mountFriendsDocument(
@@ -486,14 +510,11 @@ function mountFriendsDocument(
 	// The tab is its own host element and mounts as a direct sibling of the
 	// native tab: wrapper divs change the flex context, so theme rules sized
 	// the injected tab differently from the native one.
-	const nativeTab = header.querySelector<HTMLElement>('.friendTab');
+	const nativeTab = header.querySelector<HTMLElement>('.friendTab:not(.rcp-tab-button)');
 	const tabButton = document.createElement('div');
 	const tabHost = tabButton;
 	tabButton.id = TAB_HOST_ID;
-	const nativeTabClassName = copyNativeTabClassName(nativeTab?.className);
-	tabButton.className = nativeTabClassName
-		? `${nativeTabClassName} rcp-tab-button`
-		: 'rcp-tab-button rcp-fallback';
+	applyTabClasses(tabButton, nativeTab?.className);
 	if (!header.classList.contains('socialTabContainer')) tabButton.classList.add('rcp-header-fallback');
 	tabButton.setAttribute('role', 'tab');
 	tabButton.tabIndex = 0;
@@ -512,8 +533,6 @@ function mountFriendsDocument(
 	contentParent.insertBefore(panelHost, content);
 
 	const setOpen = (open: boolean) => {
-		// Re-check on each toggle: theme stylesheets can inject after mount.
-		updateThemeDetection(document);
 		const wasOpen = document.documentElement.hasAttribute(OPEN_ATTRIBUTE);
 		if (open) document.documentElement.setAttribute(OPEN_ATTRIBUTE, 'true');
 		else document.documentElement.removeAttribute(OPEN_ATTRIBUTE);
@@ -636,6 +655,13 @@ async function monitorFriendsWindow(context: PopupContext, generation: number): 
 				}
 				if (attachmentFailed) await delay(reconcileInterval);
 				continue;
+			}
+
+			const activeMount = mountedWindows.get(popupWindow);
+			if (activeMount) {
+				refreshFallbackTabClasses(activeMount);
+				// Cheap explicit-marker check; themes can toggle mid-session.
+				updateThemeDetection(activeMount.document);
 			}
 
 			await delay(reconcileInterval);

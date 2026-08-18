@@ -52,6 +52,9 @@ export const FRIENDS_WINDOW_STYLES = `
 html[data-recent-chats-poc-open] .socialTabContainer .friendTab.activeTab:not(.rcp-tab-button) {
 	background-color: transparent;
 	box-shadow: none;
+	/* Valve's .activeTab color survives the background suppression; restore the
+	 * inactive label color so only the Chats tab reads as selected. */
+	color: #40474a;
 }
 
 #recent-chats-poc-panel-host {
@@ -128,6 +131,13 @@ html.rcp-themed .rcp-toolbar {
 	padding-inline-end: 25px;
 }
 
+/* Valve's transient search field types at #555 (focus #aaa) — illegible in a
+ * field that stays open while its filter is applied. Keep the query readable
+ * on default Steam; the themed rule below still overrides to inherit. */
+.rcp-toolbar .rcp-search.friendSearchInput {
+	color: #d6d7d8;
+}
+
 /* Valve hardcodes the field colors; themes cannot reach a standalone search
  * input, so under a Millennium theme (html.rcp-themed, detected from injected
  * theme stylesheets) neutral translucents adapt it while Valve keeps the
@@ -138,13 +148,17 @@ html.rcp-themed .rcp-toolbar .rcp-search.friendSearchInput {
 }
 
 
-/* Steam renders friendSearchClear as a div; reset the accessible button wrapper. */
+/* Steam renders friendSearchClear as a div; reset the accessible button wrapper.
+ * Valve's 26px-tall, -2px-offset geometry is clipped by the 24px overflow-hidden
+ * container, so the plugin pins the button to the container box. */
 .rcp-search-clear {
 	align-items: center;
 	appearance: none;
 	background: transparent;
 	border: 0;
 	color: inherit;
+	height: 100%;
+	inset-inline-end: 0;
 	justify-content: center;
 	padding: 0;
 }
@@ -152,6 +166,13 @@ html.rcp-themed .rcp-toolbar .rcp-search.friendSearchInput {
 .rcp-search-clear:not(:disabled) {
 	opacity: 0.4;
 	pointer-events: auto;
+}
+
+/* Valve's .friendSearchClear:hover loses the specificity tie to the enabled
+ * rule above by source order, so the plugin owns the hover/focus brightening. */
+.rcp-search-clear:not(:disabled):hover,
+.rcp-search-clear:not(:disabled):focus-visible {
+	opacity: 1;
 }
 
 .rcp-search-clear:disabled {
@@ -208,6 +229,17 @@ html.rcp-themed .rcp-toolbar .rcp-search.friendSearchInput {
 	min-height: 0;
 	overflow-x: hidden;
 	overflow-y: auto;
+}
+
+/* Valve scopes the Friends hover-reveal thumb to .friendlistListContainer,
+ * which no longer owns a scrollbar here; mirror it on the scrolling card so
+ * the list doesn't fall through to Steam's global always-visible thumb. */
+.rcp-list-content::-webkit-scrollbar-thumb {
+	background-color: rgba(67, 73, 83, 0);
+}
+
+.rcp-list-content:hover::-webkit-scrollbar-thumb {
+	background-color: #434953;
 }
 
 .rcp-list-content,
@@ -363,6 +395,16 @@ html.rcp-themed .rcp-toolbar .rcp-search.friendSearchInput {
 	font-size: 11px;
 	line-height: 16px;
 	white-space: nowrap;
+}
+
+/* Valve's .unreadFriend .FriendMessageCount pins the badge absolutely against
+ * the transformed row, painting it over the timestamp; keep the native palette
+ * but return the badge to the meta column flow. */
+.rcp-meta .rcp-unread {
+	inset-inline-end: auto;
+	margin: 0;
+	position: static;
+	top: auto;
 }
 
 .rcp-empty {

@@ -55,14 +55,14 @@ The tab element is itself the host (`#recent-chats-poc-tab-host`) and mounts as 
 
 The label carries `opacity: 1 !important` at ID specificity: single-tab theme designs blank all native tab labels (`.socialListTab .tabLabel { opacity: 0 !important }`) because a lone FRIENDS label is redundant, but the label is the only thing identifying the Chats tab. Every other inherited theme style still applies to it.
 
-`copyNativeTabClassName` removes `activeTab` and every search-state token, then preserves the sibling's remaining tokens. Extra copied tokens may be supplied only by a Millennium theme; copying the live sibling preserves the exact native context even when Valve's base stylesheet has no corresponding rule. `rcp-tab-button` is always appended so the native-tab suppression rule can exclude the injected tab:
+`copyNativeTabClassName` removes `activeTab` and Steam's known search-state tokens (`TabSearchActive`, `SearchActive`) via an explicit stop-list — Steam's bundle assembles exactly `friendTab socialListTab activeTab` plus `TabSearchActive`, so substring heuristics would risk dropping theme tokens — then preserves the sibling's remaining tokens. Extra copied tokens may be supplied only by a Millennium theme; copying the live sibling preserves the exact native context even when Valve's base stylesheet has no corresponding rule. `rcp-tab-button` is always appended so the native-tab suppression rule can exclude the injected tab:
 
 ```css
 html[data-recent-chats-poc-open]
   .socialTabContainer .friendTab.activeTab:not(.rcp-tab-button)
 ```
 
-The injected tab is a `div[role=tab][tabindex="0"]`, matching Steam's element type and avoiding browser button chrome. Click, Enter, and Space handling stays in the popup's native DOM. If no sibling can be copied, `rcp-fallback` supplies the whole tab appearance.
+The injected tab is a `div[role=tab][tabindex="0"]`, matching Steam's element type and avoiding browser button chrome. Click, Enter, and Space handling stays in the popup's native DOM. If no copy containing `socialListTab` (the class that carries all of Valve's tab styling) is available, `rcp-fallback` supplies the whole tab appearance; while mounted, the plugin re-checks the sibling on each reconcile tick so a native tab that renders after a startup-churn mount is adopted instead of pinning the fallback.
 
 Valve defines no desktop `.socialListTab:hover` rule and sets the base cursor to `default`. Recent Chats overrides the cursor to `pointer` and animates a `currentColor` overlay on hover and keyboard focus. The overlay is omitted for the active and fallback states, uses the copied tab's theme color, and disables its transition under `prefers-reduced-motion`.
 
@@ -74,12 +74,11 @@ Valve defines no desktop `.socialListTab:hover` rule and sets the base cursor to
 | `friendSearchInput` | `.friendSearchInput[type=text]` — requires exactly `type="text"` | Full-size dark field (`#262930`), inset shadow, transparent border, text color, 12px font, letter spacing, 24px start padding, a 16px search glyph, and transitions. |
 | `friendSearchInput` | `.friendSearchInput[type=text]:focus` | Dark focus background, tighter inset shadow, no outline, focus text color, and adjusted icon/padding position. |
 | `friendSearchInput` | `.friendSearchInput::placeholder`; `.friendSearchInput:hover::placeholder,.friendSearchInput:focus::placeholder` | Italic 12px placeholder and its interaction color. High-contrast media rules provide white text, border, and placeholder. |
-| `friendSearchClear` | `.friendSearchClear` | Absolute end positioning, `28px` by `26px` geometry, flex display, cursor, z-index, and opacity/transform transitions. |
-| `friendSearchClear` | `.friendSearchClear:hover` | Full hover opacity once the plugin has enabled pointer events. |
+| `friendSearchClear` | `.friendSearchClear` | Absolute end positioning, `28px` width, flex display, cursor, z-index, and opacity/transform transitions. The plugin overrides Valve's `26px`/`-2px` vertical geometry, which the 24px `overflow:hidden` container would clip. |
 | `friendListButton` | `.friendListButton`; `.friendListButton:last-child:not(.addFriendButton)` | `24px` square geometry, contained/no-repeat background setup, and native header-button margins. |
 | `MemberListOptionsContainer` (on the form) | `.MemberListOptionsContainer .friendSearchInput::placeholder`; its `:hover/:focus` variant | Valve's brighter always-visible-search placeholder (`rgba(90,92,97,.7)`, hover `#686a70`) instead of the near-invisible header-search placeholder. The class's own bar geometry (`height:42px`, `justify-content:flex-end`) is neutralized on `.rcp-search-form`; its other rules target descendants Recent Chats does not render. |
 
-Steam normally reveals the clear control through `.SearchActive .friendSearchClear`, but Recent Chats has no collapsible search state. Plugin CSS therefore owns enabled/disabled opacity and pointer events. It also resets the accessible clear and refresh `<button>` elements because Steam renders these controls without browser button chrome and the native rules do not perform a button reset.
+Steam normally reveals the clear control through `.SearchActive .friendSearchClear`, but Recent Chats has no collapsible search state. Plugin CSS therefore owns enabled/disabled opacity, pointer events, and the hover/focus brightening — Valve's `.friendSearchClear:hover` loses its specificity tie to the plugin's enabled-state rule by source order, so it never applies. It also resets the accessible clear and refresh `<button>` elements because Steam renders these controls without browser button chrome and the native rules do not perform a button reset. The query text color is also plugin-owned (`#d6d7d8`): Valve's transient field types at `#555`, which is illegible in a field that stays open while its filter is applied.
 
 The toolbar itself is plugin-owned. No native always-open toolbar fits this DOM without side effects. Its background (and the field colors) are the one deliberate dual treatment: default Steam keeps the original strip and Valve field colors, while `html.rcp-themed` switches both to translucent neutrals — see "Millennium theme adaptation" below.
 
@@ -117,7 +116,7 @@ No literal desktop rule supplies the required 42px size, border style/color, rad
 | `FriendMessageCount` | `.chatTab .chatTabUnreadBadge,.FriendMessageCount,.ChatUnreadMessageIndicator`; later `.FriendMessageCount` | Amber/yellow badge palette, height and line height, padding, alignment, and base animation properties. |
 | `FriendMessageCount` | `.unreadFriend .FriendMessageCount` — requires the unread wrapper ancestor | 12px text, translucent amber background and glow, 4px radius, centered padding, and absolute top/end positioning. |
 
-The badge remains nested under `unreadFriend`, so the state-scoped rule fires. Plugin CSS does not replace its native visual properties.
+The badge remains nested under `unreadFriend`, so the state-scoped rule fires for its palette and typography. Plugin CSS overrides only the rule's absolute positioning (the row's `.friendStatusHover` transform makes the row the containing block, which would paint the badge over the timestamp) and returns the badge to the meta column flow.
 
 ## Panel and background
 
@@ -130,7 +129,7 @@ The badge remains nested under `unreadFriend`, so the state-scoped rule fires. P
 
 The list container itself paints the Image 2 background. The panel remains transparent so Steam and Millennium themes can replace that rule.
 
-Scrolling is deliberately moved off the container onto the rows card (`.rcp-list` is `overflow: hidden`; `.rcp-list-content` scrolls): themes drop the container's scrollbar-side padding when the container owns a scrollbar (mirroring the native list, where the scrollbar takes that edge), which pushed the card flush against the right edge. With the card scrolling internally, themed container padding stays symmetric.
+Scrolling is deliberately moved off the container onto the rows card (`.rcp-list` is `overflow: hidden`; `.rcp-list-content` scrolls): themes drop the container's scrollbar-side padding when the container owns a scrollbar (mirroring the native list, where the scrollbar takes that edge), which pushed the card flush against the right edge. With the card scrolling internally, themed container padding stays symmetric. Because Valve scopes the Friends hover-reveal thumb to `.friendlistListContainer` pseudo-elements, the plugin mirrors those two rules (transparent thumb, `#434953` on hover) on `.rcp-list-content` so the card does not fall through to Steam's global always-visible 14px thumb.
 
 ## Removed and rejected classes
 
@@ -150,7 +149,7 @@ Scrolling is deliberately moved off the container onto the rows card (`.rcp-list
 
 ## Millennium theme adaptation
 
-Themes cannot target `rcp-*` classes, so two plugin-owned surfaces with no native equivalent — the toolbar strip and the search-field colors — would otherwise stay Steam-default under every theme. The plugin toggles `rcp-themed` on the popup's root element by checking for stylesheets served from Millennium's origin (how active-theme CSS arrives; default Steam loads none), re-checking on every tab toggle because theme CSS can inject after mount. Default Steam keeps the original `#282d33` strip and Valve field colors; `html.rcp-themed` switches both to translucent neutrals (`rgba(0,0,0,.2)` / `rgba(0,0,0,.25)`) that darken whatever background the theme paints. This dual treatment is intentionally limited to these two surfaces.
+Themes cannot target `rcp-*` classes, so two plugin-owned surfaces with no native equivalent — the toolbar strip and the search-field colors — would otherwise stay Steam-default under every theme. The plugin toggles `rcp-themed` on the popup's root element via the per-document `<link id="millennium-injected">` theme-stylesheet marker (id unchanged since Millennium v2) — present exactly when Millennium injected theme CSS into this document. Weaker signals are deliberately not used: the `MillenniumQuickCss` inline style exists in every popup even on default Steam, and global theme state does not prove this window was restyled. The check re-runs on each reconcile tick because themes can be toggled mid-session. Default Steam keeps the original `#282d33` strip and Valve field colors; `html.rcp-themed` switches both to translucent neutrals (`rgba(0,0,0,.2)` / `rgba(0,0,0,.25)`) that darken whatever background the theme paints. This dual treatment is intentionally limited to these two surfaces.
 
 Theme-hardening rules learned from live themes, encoded above: match the native tab's `box-sizing`, keep the row width implicit so forced margins inset rather than overflow, avoid native hook classes whose themed sizing assumes native markup (`labelHolder`), scroll the card rather than the container, and pin only the Chats label's opacity against label-hiding designs.
 
