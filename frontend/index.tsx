@@ -147,9 +147,12 @@ function joinClasses(...classes: Array<string | false | null | undefined>): stri
 	return classes.filter((className): className is string => Boolean(className)).join(' ');
 }
 
+function isActivationKey(key: string): boolean {
+	return key === 'Enter' || key === ' ';
+}
+
 function ConversationAvatar({ conversation }: { conversation: RecentConversation }) {
-	// Track the failed URL, not a boolean: a later poll can deliver a fresh
-	// avatarUrl for the same conversation, and the image should retry then.
+	// Remember the failed URL so a newly fetched avatar URL still gets a retry.
 	const [failedAvatarUrl, setFailedAvatarUrl] = useState<string>();
 	const failed = !!conversation.avatarUrl && conversation.avatarUrl === failedAvatarUrl;
 
@@ -280,9 +283,6 @@ function RecentChatsPanel({ document, popupWindow, browserContext }: RecentChats
 	return (
 		<div className="rcp-panel FriendsListContent">
 			<div className="rcp-toolbar">
-				{/* MemberListOptionsContainer: ancestor context for Valve's
-				    brighter always-visible-search placeholder rules; its own
-				    bar geometry is neutralized in .rcp-search-form. */}
 				<form className="rcp-search-form MemberListOptionsContainer" onSubmit={(event) => event.preventDefault()}>
 					<div className="rcp-search-container inputContainer">
 						<input
@@ -327,14 +327,12 @@ function RecentChatsPanel({ document, popupWindow, browserContext }: RecentChats
 								tabIndex={0}
 								onClick={() => store && openConversation(store, conversation, popupWindow, browserContext)}
 								onKeyDown={(event) => {
-									if (event.key !== 'Enter' && event.key !== ' ') return;
+									if (!isActivationKey(event.key)) return;
 									event.preventDefault();
 									if (store) openConversation(store, conversation, popupWindow, browserContext);
 								}}
 							>
 								<ConversationAvatar conversation={conversation} />
-								{/* No labelHolder class: themes size that hook for native rows
-								    (e.g. width:10px hacks) and would collapse our two-line copy. */}
 								<span className="rcp-copy">
 									<span className="rcp-name">{conversation.name}</span>
 									<span
@@ -447,11 +445,8 @@ function waitForFriendsAnchors(
 
 const THEMED_CLASS = 'rcp-themed';
 
-// Theme CSS that restyles this popup arrives as Millennium's stable
-// <link id="millennium-injected"> marker (id unchanged since v2). Weaker
-// signals are deliberately ignored: the MillenniumQuickCss inline style is
-// injected into every popup even on default Steam, and global theme state
-// says nothing about whether this document's Friends window was restyled.
+// This per-document link distinguishes themed popups from Millennium's Quick
+// CSS marker, which is also present with Steam's default theme.
 function updateThemeDetection(document: Document): void {
 	let themed = false;
 	try {
@@ -470,22 +465,20 @@ function removeOrphanedInjection(document: Document): void {
 	document.getElementById(STYLE_ID)?.remove();
 }
 
-// socialListTab carries all of Valve's tab styling; a copy without it cannot
-// style the tab, so the hardcoded fallback appearance must take over.
 function applyTabClasses(tabHost: HTMLElement, nativeClassName: string | null | undefined): void {
 	const copied = copyNativeTabClassName(nativeClassName);
-	const styled = !!copied && copied.split(' ').includes('socialListTab');
+	const hasNativeStyles = copied?.split(' ').includes('socialListTab') ?? false;
+	const isHeaderFallback = tabHost.classList.contains('rcp-header-fallback');
+	const isActive = tabHost.classList.contains('activeTab');
 	tabHost.className = joinClasses(
 		copied,
 		'rcp-tab-button',
-		!styled && 'rcp-fallback',
-		tabHost.classList.contains('rcp-header-fallback') && 'rcp-header-fallback',
-		tabHost.classList.contains('activeTab') && 'activeTab',
+		!hasNativeStyles && 'rcp-fallback',
+		isHeaderFallback && 'rcp-header-fallback',
+		isActive && 'activeTab',
 	);
 }
 
-// A mount during startup churn can precede the native tab's render; adopt the
-// sibling's classes once it exists instead of pinning the fallback look.
 function refreshFallbackTabClasses(mounted: MountedWindow): void {
 	if (!mounted.tabHost.classList.contains('rcp-fallback')) return;
 	const nativeTab = mounted.header.querySelector<HTMLElement>('.friendTab:not(.rcp-tab-button)');
@@ -507,24 +500,21 @@ function mountFriendsDocument(
 	ensureStyle(document);
 	updateThemeDetection(document);
 
-	// The tab is its own host element and mounts as a direct sibling of the
-	// native tab: wrapper divs change the flex context, so theme rules sized
-	// the injected tab differently from the native one.
+	// A wrapper would give the injected tab a different flex context from its sibling.
 	const nativeTab = header.querySelector<HTMLElement>('.friendTab:not(.rcp-tab-button)');
-	const tabButton = document.createElement('div');
-	const tabHost = tabButton;
-	tabButton.id = TAB_HOST_ID;
-	applyTabClasses(tabButton, nativeTab?.className);
-	if (!header.classList.contains('socialTabContainer')) tabButton.classList.add('rcp-header-fallback');
-	tabButton.setAttribute('role', 'tab');
-	tabButton.tabIndex = 0;
-	tabButton.setAttribute('aria-selected', 'false');
-	tabButton.setAttribute('aria-controls', PANEL_HOST_ID);
+	const tabHost = document.createElement('div');
+	tabHost.id = TAB_HOST_ID;
+	applyTabClasses(tabHost, nativeTab?.className);
+	if (!header.classList.contains('socialTabContainer')) tabHost.classList.add('rcp-header-fallback');
+	tabHost.setAttribute('role', 'tab');
+	tabHost.tabIndex = 0;
+	tabHost.setAttribute('aria-selected', 'false');
+	tabHost.setAttribute('aria-controls', PANEL_HOST_ID);
 	const tabLabel = document.createElement('span');
 	tabLabel.className = 'tabLabel';
 	tabLabel.textContent = 'Chats';
-	tabButton.append(tabLabel);
-	(nativeTab?.parentElement ?? header).append(tabButton);
+	tabHost.append(tabLabel);
+	(nativeTab?.parentElement ?? header).append(tabHost);
 
 	const panelHost = document.createElement('div');
 	panelHost.id = PANEL_HOST_ID;
@@ -536,18 +526,18 @@ function mountFriendsDocument(
 		const wasOpen = document.documentElement.hasAttribute(OPEN_ATTRIBUTE);
 		if (open) document.documentElement.setAttribute(OPEN_ATTRIBUTE, 'true');
 		else document.documentElement.removeAttribute(OPEN_ATTRIBUTE);
-		tabButton.classList.toggle('activeTab', open);
-		tabButton.setAttribute('aria-selected', String(open));
+		tabHost.classList.toggle('activeTab', open);
+		tabHost.setAttribute('aria-selected', String(open));
 		if (wasOpen !== open) console.info(LOG_PREFIX, open ? 'Opened Chats panel' : 'Closed Chats panel');
 	};
 
-	tabButton.addEventListener('click', (event) => {
+	tabHost.addEventListener('click', (event) => {
 		event.preventDefault();
 		event.stopPropagation();
 		setOpen(!document.documentElement.hasAttribute(OPEN_ATTRIBUTE));
 	});
-	tabButton.addEventListener('keydown', (event) => {
-		if (event.key !== 'Enter' && event.key !== ' ') return;
+	tabHost.addEventListener('keydown', (event) => {
+		if (!isActivationKey(event.key)) return;
 		event.preventDefault();
 		event.stopPropagation();
 		setOpen(!document.documentElement.hasAttribute(OPEN_ATTRIBUTE));
@@ -660,7 +650,6 @@ async function monitorFriendsWindow(context: PopupContext, generation: number): 
 			const activeMount = mountedWindows.get(popupWindow);
 			if (activeMount) {
 				refreshFallbackTabClasses(activeMount);
-				// Cheap explicit-marker check; themes can toggle mid-session.
 				updateThemeDetection(activeMount.document);
 			}
 

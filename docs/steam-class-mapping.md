@@ -55,7 +55,7 @@ The tab element is itself the host (`#recent-chats-poc-tab-host`) and mounts as 
 
 The label carries `opacity: 1 !important` at ID specificity: single-tab theme designs blank all native tab labels (`.socialListTab .tabLabel { opacity: 0 !important }`) because a lone FRIENDS label is redundant, but the label is the only thing identifying the Chats tab. Every other inherited theme style still applies to it.
 
-`copyNativeTabClassName` removes `activeTab` and Steam's known search-state tokens (`TabSearchActive`, `SearchActive`) via an explicit stop-list — Steam's bundle assembles exactly `friendTab socialListTab activeTab` plus `TabSearchActive`, so substring heuristics would risk dropping theme tokens — then preserves the sibling's remaining tokens. Extra copied tokens may be supplied only by a Millennium theme; copying the live sibling preserves the exact native context even when Valve's base stylesheet has no corresponding rule. `rcp-tab-button` is always appended so the native-tab suppression rule can exclude the injected tab:
+`copyNativeTabClassName` removes `activeTab` and Steam's known search-state tokens (`TabSearchActive`, `SearchActive`) via an explicit stop-list — Steam's bundle assembles exactly `friendTab socialListTab activeTab` plus `TabSearchActive`, so substring heuristics would risk dropping theme tokens — then preserves the sibling's remaining tokens. Extra copied tokens may come from a Millennium theme or a future Steam update; copying the live sibling preserves the exact native context even when Valve's base stylesheet has no corresponding rule. `rcp-tab-button` is always appended so the native-tab suppression rule can exclude the injected tab:
 
 ```css
 html[data-recent-chats-poc-open]
@@ -127,7 +127,7 @@ The badge remains nested under `unreadFriend`, so the state-scoped rule fires fo
 | `friendlistListContainer` | later `.friendlistListContainer`; native scrollbar selectors | Relative positioning and Friends-list scrollbar interaction colors. |
 | `listContentContainer` | `.listContentContainer` | Relative positioning for list content. |
 
-The list container itself paints the Image 2 background. The panel remains transparent so Steam and Millennium themes can replace that rule.
+The list container paints Steam's native Friends-list background. The panel remains transparent so Millennium themes can replace that rule.
 
 Scrolling is deliberately moved off the container onto the rows card (`.rcp-list` is `overflow: hidden`; `.rcp-list-content` scrolls): themes drop the container's scrollbar-side padding when the container owns a scrollbar (mirroring the native list, where the scrollbar takes that edge), which pushed the card flush against the right edge. With the card scrolling internally, themed container padding stays symmetric. Because Valve scopes the Friends hover-reveal thumb to `.friendlistListContainer` pseudo-elements, the plugin mirrors those two rules (transparent thumb, `#434953` on hover) on `.rcp-list-content` so the card does not fall through to Steam's global always-visible 14px thumb.
 

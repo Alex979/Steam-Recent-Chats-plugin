@@ -1,6 +1,4 @@
-// Steam's Friends tab assembles exactly `friendTab socialListTab activeTab`,
-// plus `TabSearchActive` while the header search is open. Strip only these
-// known state tokens so theme-added classes survive the copy verbatim.
+// Use an explicit state list so similarly named theme classes survive the copy.
 const NATIVE_TAB_STATE_CLASSES = new Set(['activeTab', 'TabSearchActive', 'SearchActive']);
 
 export function copyNativeTabClassName(className: string | null | undefined): string | undefined {

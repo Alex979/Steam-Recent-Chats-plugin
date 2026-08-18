@@ -1,10 +1,6 @@
 export const FRIENDS_WINDOW_STYLES = `
-/* The tab is its own host element, mounted as a direct sibling of the native
- * tab so Valve and theme rules size both identically. Symmetric inline padding
- * keeps the label centered whatever start padding a theme sets. */
 #recent-chats-poc-tab-host {
-	/* content-box like the native tab: a theme's vertical padding must add to
-	 * the shared 30px height on both tabs equally. */
+	/* Match the native tab when themes add vertical padding. */
 	box-sizing: content-box;
 	cursor: pointer;
 	flex-grow: 0;
@@ -22,7 +18,6 @@ export const FRIENDS_WINDOW_STYLES = `
 	z-index: 20;
 }
 
-/* Valve has no desktop tab hover rule; currentColor keeps this theme-neutral. */
 #recent-chats-poc-tab-host:not(.rcp-fallback)::before {
 	background-color: currentColor;
 	content: '';
@@ -39,10 +34,7 @@ export const FRIENDS_WINDOW_STYLES = `
 	opacity: 0.32;
 }
 
-/* Single-tab theme designs blank native tab labels (opacity 0 !important on
- * .socialListTab .tabLabel) because FRIENDS alone is redundant — but our
- * label is the only thing identifying the Chats tab. The ID out-specifies
- * the theme rule; every other inherited theme style still applies. */
+/* Some single-tab themes hide native labels, but this label identifies Chats. */
 #recent-chats-poc-tab-host .tabLabel {
 	opacity: 1 !important;
 	position: relative;
@@ -52,8 +44,7 @@ export const FRIENDS_WINDOW_STYLES = `
 html[data-recent-chats-poc-open] .socialTabContainer .friendTab.activeTab:not(.rcp-tab-button) {
 	background-color: transparent;
 	box-shadow: none;
-	/* Valve's .activeTab color survives the background suppression; restore the
-	 * inactive label color so only the Chats tab reads as selected. */
+	/* Only Chats should retain the selected label color. */
 	color: #40474a;
 }
 
@@ -84,9 +75,7 @@ html[data-recent-chats-poc-open] #recent-chats-poc-panel-host.rcp-content-fallba
 	min-height: 0;
 }
 
-/* Steam has no always-open desktop search-toolbar class without growth/state
- * side effects; default Steam gets the original toolbar strip, while a
- * Millennium theme gets a translucent neutral that blends with its palette. */
+/* There is no native always-open search toolbar without layout side effects. */
 .rcp-toolbar {
 	align-items: center;
 	background: #282d33;
@@ -109,8 +98,7 @@ html.rcp-themed .rcp-toolbar {
 	min-width: 0;
 }
 
-/* Neutralize MemberListOptionsContainer's bar geometry (42px height,
- * flex-end): the class is only worn for its placeholder rules. */
+/* MemberListOptionsContainer is used only for its placeholder rules. */
 .rcp-search-form {
 	box-sizing: border-box;
 	height: auto;
@@ -131,26 +119,18 @@ html.rcp-themed .rcp-toolbar {
 	padding-inline-end: 25px;
 }
 
-/* Valve's transient search field types at #555 (focus #aaa) — illegible in a
- * field that stays open while its filter is applied. Keep the query readable
- * on default Steam; the themed rule below still overrides to inherit. */
+/* Valve's transient field color is too dark for a persistent query. */
 .rcp-toolbar .rcp-search.friendSearchInput {
 	color: #d6d7d8;
 }
 
-/* Valve hardcodes the field colors; themes cannot reach a standalone search
- * input, so under a Millennium theme (html.rcp-themed, detected from injected
- * theme stylesheets) neutral translucents adapt it while Valve keeps the
- * icon/shape. Default Steam keeps Valve's own field colors. */
+/* Translucent colors let theme backgrounds show through. */
 html.rcp-themed .rcp-toolbar .rcp-search.friendSearchInput {
 	background-color: rgba(0, 0, 0, 0.25);
 	color: inherit;
 }
 
-
-/* Steam renders friendSearchClear as a div; reset the accessible button wrapper.
- * Valve's 26px-tall, -2px-offset geometry is clipped by the 24px overflow-hidden
- * container, so the plugin pins the button to the container box. */
+/* Reset the button and keep it inside Steam's clipped input container. */
 .rcp-search-clear {
 	align-items: center;
 	appearance: none;
@@ -168,8 +148,6 @@ html.rcp-themed .rcp-toolbar .rcp-search.friendSearchInput {
 	pointer-events: auto;
 }
 
-/* Valve's .friendSearchClear:hover loses the specificity tie to the enabled
- * rule above by source order, so the plugin owns the hover/focus brightening. */
 .rcp-search-clear:not(:disabled):hover,
 .rcp-search-clear:not(:disabled):focus-visible {
 	opacity: 1;
@@ -202,7 +180,6 @@ html.rcp-themed .rcp-toolbar .rcp-search.friendSearchInput {
 	outline: none;
 }
 
-/* Error state has no native Friends-list equivalent. */
 .rcp-error-banner {
 	background: rgba(120, 45, 36, 0.65);
 	border-bottom: 1px solid rgba(219, 116, 91, 0.28);
@@ -212,9 +189,7 @@ html.rcp-themed .rcp-toolbar .rcp-search.friendSearchInput {
 	padding: 5px 10px;
 }
 
-/* The rows card scrolls, not the themed container: themes drop the
- * container's scrollbar-side padding when it owns a scrollbar (matching the
- * native list), which pushed our card flush against the right edge. */
+/* Keep themed container padding symmetric by scrolling the inner card. */
 .rcp-list {
 	display: flex;
 	flex: 1 1 auto;
@@ -231,9 +206,7 @@ html.rcp-themed .rcp-toolbar .rcp-search.friendSearchInput {
 	overflow-y: auto;
 }
 
-/* Valve scopes the Friends hover-reveal thumb to .friendlistListContainer,
- * which no longer owns a scrollbar here; mirror it on the scrolling card so
- * the list doesn't fall through to Steam's global always-visible thumb. */
+/* Mirror Steam's hover-reveal scrollbar on the scrolling element. */
 .rcp-list-content::-webkit-scrollbar-thumb {
 	background-color: rgba(67, 73, 83, 0);
 }
@@ -248,9 +221,7 @@ html.rcp-themed .rcp-toolbar .rcp-search.friendSearchInput {
 	width: 100%;
 }
 
-/* Native rows are 38px; Recent Chats owns its 58px three-column geometry. */
-/* No explicit width: the row auto-stretches so theme row margins (e.g.
- * floating-row designs) inset it instead of pushing it past the card edge. */
+/* An implicit width lets theme-added margins inset the row without overflow. */
 .friendGroup .rcp-row {
 	-webkit-app-region: no-drag;
 	align-items: center;
@@ -287,7 +258,6 @@ html.rcp-themed .rcp-toolbar .rcp-search.friendSearchInput {
 	width: 100%;
 }
 
-/* Literal avatar rules provide position and border width, but not the image frame. */
 .rcp-avatar {
 	background: #252a30;
 	border-color: #4f6168;
@@ -325,7 +295,6 @@ html.rcp-themed .rcp-toolbar .rcp-search.friendSearchInput {
 	white-space: nowrap;
 }
 
-/* No desktop literal class produces the neutral recent-chat name treatment. */
 .rcp-name {
 	color: #d6d7d8;
 	font-size: 14px;
@@ -389,7 +358,6 @@ html.rcp-themed .rcp-toolbar .rcp-search.friendSearchInput {
 	min-width: 0;
 }
 
-/* Relative time and empty-state copy are plugin-only information. */
 .rcp-time {
 	color: #7a848d;
 	font-size: 11px;
@@ -397,9 +365,7 @@ html.rcp-themed .rcp-toolbar .rcp-search.friendSearchInput {
 	white-space: nowrap;
 }
 
-/* Valve's .unreadFriend .FriendMessageCount pins the badge absolutely against
- * the transformed row, painting it over the timestamp; keep the native palette
- * but return the badge to the meta column flow. */
+/* Keep the native badge style, but return it to the meta column flow. */
 .rcp-meta .rcp-unread {
 	inset-inline-end: auto;
 	margin: 0;
@@ -415,7 +381,6 @@ html.rcp-themed .rcp-toolbar .rcp-search.friendSearchInput {
 	text-align: center;
 }
 
-/* The tab fallback is used only when no live desktop sibling can be copied. */
 #recent-chats-poc-tab-host.rcp-fallback {
 	align-items: center;
 	background: transparent;
