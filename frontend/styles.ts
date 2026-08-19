@@ -337,6 +337,18 @@ html:not(.rcp-themed) .rcp-toolbar .rcp-search.friendSearchInput {
 	padding: 0 !important;
 }
 
+.rcp-name.rcp-native-persona-text {
+	font-size: 14px !important;
+	font-weight: 500 !important;
+	line-height: 19px !important;
+}
+
+.rcp-snippet.rcp-native-persona-text {
+	font-size: 12px !important;
+	font-weight: 400 !important;
+	line-height: 17px !important;
+}
+
 .friend.awayOrSnooze .rcp-copy {
 	opacity: 0.5;
 }

@@ -62,6 +62,8 @@ describe('Steam style integration', () => {
 		expect(awayCopyRule).toContain('transform: none !important;');
 		expect(awayCopyRule).toContain('width: auto !important;');
 		expect(getRuleBody('.rcp-native-persona-text')).toContain('-webkit-mask: none !important;');
+		expect(getRuleBody('.rcp-name.rcp-native-persona-text')).toContain('font-size: 14px !important;');
+		expect(getRuleBody('.rcp-snippet.rcp-native-persona-text')).toContain('font-size: 12px !important;');
 	});
 
 	test('dims offline fallback avatars like native Steam rows', () => {
