@@ -247,14 +247,9 @@ html:not(.rcp-themed) .rcp-toolbar .rcp-search.friendSearchInput {
 	min-width: 0;
 }
 
-/* Valve has no broadcast detail or hover rules for friend rows. */
+/* Valve has no broadcast detail rule for friend rows. */
 html:not(.rcp-themed) .friendGroup .rcp-row.watchingbroadcast .status {
 	color: #8277b1;
-}
-
-.friendGroup .rcp-row.friendStatusHover.watchingbroadcast:hover,
-.friendGroup .rcp-row.friendStatusHover.watchingbroadcast.Friend_ContextMenuActive {
-	background-color: rgba(60, 53, 86, 0.3);
 }
 
 /* A group has no single persona presence, so keep its row deliberately neutral. */
@@ -266,10 +261,16 @@ html:not(.rcp-themed) .friendGroup .rcp-row.rcp-group .status {
 	color: #8a9997;
 }
 
-.friendGroup .rcp-row.friendStatusHover.rcp-presence-unknown:hover,
-.friendGroup .rcp-row.friendStatusHover.rcp-presence-unknown.Friend_ContextMenuActive,
-.friendGroup .rcp-row.friendStatusHover.rcp-group:hover,
-.friendGroup .rcp-row.friendStatusHover.rcp-group.Friend_ContextMenuActive {
+/* Reuse Steam's neutral group-chat hover when no presence-specific rule exists.
+   Zero specificity lets every native or theme hover rule override the fallback. */
+:where(
+	.friendStatusHover.watchingbroadcast:hover,
+	.friendStatusHover.watchingbroadcast.Friend_ContextMenuActive,
+	.friendStatusHover.rcp-presence-unknown:hover,
+	.friendStatusHover.rcp-presence-unknown.Friend_ContextMenuActive,
+	.friendStatusHover.rcp-group:hover,
+	.friendStatusHover.rcp-group.Friend_ContextMenuActive
+) {
 	background-color: rgba(47, 56, 68, 0.5);
 }
 

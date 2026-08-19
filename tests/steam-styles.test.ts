@@ -35,16 +35,10 @@ describe('Steam style integration', () => {
 		expect(getRuleBody('.rcp-row-wrapper.unreadFriend > .rcp-row')).toContain('flex: 1 1 auto;');
 	});
 
-	test('supplies default-Steam broadcast detail and hover colors missing from native rows', () => {
+	test('supplies the default-Steam broadcast detail color missing from native rows', () => {
 		expect(
 			getRuleBody('html:not(.rcp-themed) .friendGroup .rcp-row.watchingbroadcast .status'),
 		).toContain('color: #8277b1;');
-		expect(
-			getRuleBody(
-				'.friendGroup .rcp-row.friendStatusHover.watchingbroadcast:hover,\n' +
-					'.friendGroup .rcp-row.friendStatusHover.watchingbroadcast.Friend_ContextMenuActive',
-			),
-		).toContain('background-color: rgba(60, 53, 86, 0.3);');
 		expect(
 			getRuleBody(
 				'html.rcp-themed .friendGroup .rcp-row.rcp-presence-unknown .status,\n' +
@@ -61,14 +55,24 @@ describe('Steam style integration', () => {
 		expect(getRuleBody('html:not(.rcp-themed) .friendGroup .rcp-row.rcp-group .status')).toContain(
 			'color: #8a9997;',
 		);
+	});
+
+	test('uses Steam\'s neutral group-chat hover as a zero-specificity fallback', () => {
 		expect(
 			getRuleBody(
-				'.friendGroup .rcp-row.friendStatusHover.rcp-presence-unknown:hover,\n' +
-					'.friendGroup .rcp-row.friendStatusHover.rcp-presence-unknown.Friend_ContextMenuActive,\n' +
-					'.friendGroup .rcp-row.friendStatusHover.rcp-group:hover,\n' +
-					'.friendGroup .rcp-row.friendStatusHover.rcp-group.Friend_ContextMenuActive',
+				':where(\n' +
+					'\t.friendStatusHover.watchingbroadcast:hover,\n' +
+					'\t.friendStatusHover.watchingbroadcast.Friend_ContextMenuActive,\n' +
+					'\t.friendStatusHover.rcp-presence-unknown:hover,\n' +
+					'\t.friendStatusHover.rcp-presence-unknown.Friend_ContextMenuActive,\n' +
+					'\t.friendStatusHover.rcp-group:hover,\n' +
+					'\t.friendStatusHover.rcp-group.Friend_ContextMenuActive\n' +
+					')',
 			),
 		).toContain('background-color: rgba(47, 56, 68, 0.5);');
+		expect(FRIENDS_WINDOW_STYLES).not.toContain(
+			'.friendGroup .rcp-row.friendStatusHover.watchingbroadcast:hover',
+		);
 	});
 
 	test('keeps unresolved persona rows neutral and readable', () => {
