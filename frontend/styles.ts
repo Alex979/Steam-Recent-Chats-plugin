@@ -1,9 +1,44 @@
+/* Injected only into themed documents, positioned before Millennium's theme
+   stylesheet: source order lets it beat Steam's default field colors while any
+   theme rule of at least Steam's own specificity still overrides it. */
+export const THEMED_FALLBACK_STYLES = `
+.rcp-search.friendSearchInput {
+	background-color: rgba(0, 0, 0, 0.25);
+	color: inherit;
+}
+
+.rcp-search.friendSearchInput:focus {
+	background-color: rgba(0, 0, 0, 0.25);
+	color: inherit;
+}
+`;
+
+interface FontMetrics {
+	fontSize: string;
+	fontWeight: number;
+	lineHeight: string;
+}
+
+const NAME_FONT: FontMetrics = { fontSize: '14px', fontWeight: 500, lineHeight: '19px' };
+const SNIPPET_FONT: FontMetrics = { fontSize: '12px', fontWeight: 400, lineHeight: '17px' };
+
+function fontDeclarations(metrics: FontMetrics, important = false): string {
+	const suffix = important ? ' !important' : '';
+	return `font-size: ${metrics.fontSize}${suffix};
+	font-weight: ${metrics.fontWeight}${suffix};
+	line-height: ${metrics.lineHeight}${suffix};`;
+}
+
 export const FRIENDS_WINDOW_STYLES = `
 #recent-chats-poc-tab-host {
-	align-self: stretch;
-	display: flex;
-	flex: 0 0 auto;
-	margin-left: auto;
+	/* Match the native tab when themes add vertical padding. */
+	box-sizing: content-box;
+	cursor: pointer;
+	flex-grow: 0;
+	margin-inline-start: auto;
+	overflow: hidden;
+	padding-inline: 16px;
+	position: relative;
 }
 
 #recent-chats-poc-tab-host.rcp-header-fallback {
@@ -14,45 +49,27 @@ export const FRIENDS_WINDOW_STYLES = `
 	z-index: 20;
 }
 
-#recent-chats-poc-tab-host .rcp-tab-button {
-	appearance: none;
-	align-items: center;
-	background: transparent;
-	border: 0;
-	box-sizing: border-box;
-	color: #40474a;
-	cursor: pointer;
-	display: flex;
-	font: 500 13px/20px Motiva Sans, Arial, sans-serif;
-	height: 30px;
-	justify-content: center;
-	letter-spacing: 0.3px;
-	margin-top: 6px;
-	padding: 0 16px;
-	text-align: left;
-	text-transform: uppercase;
-	transition: background-color 233ms ease-in-out, box-shadow 233ms ease-in-out, color 233ms ease-in-out;
+#recent-chats-poc-tab-host:not(.rcp-fallback)::before {
+	background-color: currentColor;
+	content: '';
+	inset: 0;
+	opacity: 0;
+	pointer-events: none;
+	position: absolute;
+	transition: opacity 180ms ease-in-out;
+	z-index: 0;
 }
 
-.compactView #recent-chats-poc-tab-host .rcp-tab-button {
-	height: 24px;
+#recent-chats-poc-tab-host:not(.rcp-fallback):not(.activeTab):hover::before,
+#recent-chats-poc-tab-host:not(.rcp-fallback):not(.activeTab):focus-visible::before {
+	opacity: 0.32;
 }
 
-#recent-chats-poc-tab-host .rcp-tab-button:hover {
-	background-color: rgba(67, 73, 83, 0.55);
-	color: #b7ccd5;
-}
-
-#recent-chats-poc-tab-host .rcp-tab-button.rcp-active {
-	background-color: #434953;
-	box-shadow: 0 -2px 3px rgba(0, 0, 0, 0.05), 4px -1px 1px rgba(0, 0, 0, 0.05);
-	color: #b7ccd5;
-}
-
-html[data-recent-chats-poc-open] .socialTabContainer .friendTab.activeTab {
-	background-color: transparent;
-	box-shadow: none;
-	color: #40474a;
+/* Some single-tab themes hide native labels, but this label identifies Chats. */
+#recent-chats-poc-tab-host .tabLabel {
+	opacity: 1 !important;
+	position: relative;
+	z-index: 1;
 }
 
 #recent-chats-poc-panel-host {
@@ -66,7 +83,7 @@ html[data-recent-chats-poc-open] #recent-chats-poc-panel-host {
 	display: flex;
 }
 
-html[data-recent-chats-poc-open] .FriendsListContent {
+html[data-recent-chats-poc-open] #recent-chats-poc-panel-host ~ .FriendsListContent {
 	display: none !important;
 }
 
@@ -76,72 +93,108 @@ html[data-recent-chats-poc-open] #recent-chats-poc-panel-host.rcp-content-fallba
 }
 
 .rcp-panel {
-	background: radial-gradient(ellipse farthest-corner at 50% 30%, #212329 0%, #1e2025 50%, #1c1d22 100%);
-	color: #d6d7d8;
 	display: flex;
 	flex: 1 1 auto;
 	flex-direction: column;
-	font-family: Motiva Sans, Arial, sans-serif;
 	min-height: 0;
 }
 
+/* There is no native always-open search toolbar without layout side effects. */
 .rcp-toolbar {
 	align-items: center;
 	background: #282d33;
 	box-shadow: 0 2px 4px rgba(0, 0, 0, 0.22);
 	display: flex;
+	flex: 0 0 auto;
 	gap: 6px;
 	padding: 6px 8px;
 	z-index: 1;
 }
 
-.rcp-search {
-	appearance: none;
-	background: #1d2025;
-	border: 1px solid #101216;
-	border-radius: 2px;
-	box-shadow: inset 0 1px 4px rgba(0, 0, 0, 0.35);
-	box-sizing: border-box;
-	color: #d6d7d8;
+html.rcp-themed .rcp-toolbar {
+	background: rgba(0, 0, 0, 0.2);
+}
+
+.rcp-search-form,
+.rcp-search-container {
+	display: flex;
 	flex: 1 1 auto;
-	font: 13px/18px Motiva Sans, Arial, sans-serif;
-	height: 28px;
 	min-width: 0;
-	outline: none;
-	padding: 4px 8px;
 }
 
-.rcp-search::placeholder {
-	color: #6f777f;
-	font-style: italic;
+/* MemberListOptionsContainer is used only for its placeholder rules. */
+.rcp-search-form {
+	box-sizing: border-box;
+	height: auto;
+	justify-content: flex-start;
+	margin: 0;
 }
 
-.rcp-search:focus {
-	border-color: #3f5968;
+.rcp-search-container {
+	-webkit-app-region: no-drag;
+	margin: 0;
+	position: relative;
 }
 
-.rcp-search::-webkit-search-cancel-button {
-	filter: grayscale(1);
-	opacity: 0.6;
+.rcp-search {
+	box-sizing: border-box;
+	flex: 1 1 auto;
+	min-width: 0;
+	padding-inline-end: 25px;
 }
 
-.rcp-refresh {
+/* Valve's transient field color is too dark for a persistent default-Steam query. */
+html:not(.rcp-themed) .rcp-toolbar .rcp-search.friendSearchInput {
+	color: #d6d7d8;
+}
+
+/* Reset the button and keep it inside Steam's clipped input container. */
+.rcp-search-clear {
+	align-items: center;
 	appearance: none;
 	background: transparent;
 	border: 0;
-	border-radius: 2px;
-	color: #b7ccd5;
-	cursor: pointer;
-	font: 18px/28px Arial, sans-serif;
-	height: 28px;
+	color: inherit;
+	height: 100%;
+	inset-inline-end: 0;
+	justify-content: center;
 	padding: 0;
-	width: 30px;
+}
+
+.rcp-search-clear:not(:disabled) {
+	opacity: 0.4;
+	pointer-events: auto;
+}
+
+.rcp-search-clear:not(:disabled):hover,
+.rcp-search-clear:not(:disabled):focus-visible {
+	opacity: 1;
+}
+
+.rcp-search-clear:disabled {
+	opacity: 0;
+}
+
+.rcp-search-clear span {
+	font-size: 18px;
+	line-height: 1;
+}
+
+.rcp-refresh {
+	-webkit-app-region: no-drag;
+	appearance: none;
+	background: transparent;
+	border: 0;
+	color: inherit;
+	cursor: pointer;
+	flex: 0 0 auto;
+	font: 18px/24px Arial, sans-serif;
+	padding: 0;
 }
 
 .rcp-refresh:hover,
 .rcp-refresh:focus-visible {
 	background-color: rgba(255, 255, 255, 0.08);
-	color: #fff;
 	outline: none;
 }
 
@@ -154,76 +207,158 @@ html[data-recent-chats-poc-open] #recent-chats-poc-panel-host.rcp-content-fallba
 	padding: 5px 10px;
 }
 
+/* Keep themed container padding symmetric by scrolling the inner card. */
 .rcp-list {
+	display: flex;
 	flex: 1 1 auto;
+	flex-direction: column;
+	min-height: 0;
+	overflow: hidden;
+}
+
+.rcp-list-content {
+	box-sizing: border-box;
+	flex: 0 1 auto;
 	min-height: 0;
 	overflow-x: hidden;
 	overflow-y: auto;
-	scrollbar-color: #434953 transparent;
-	scrollbar-width: thin;
 }
 
-.rcp-list::-webkit-scrollbar {
-	width: 8px;
+/* Mirror Steam's hover-reveal scrollbar on the scrolling element. */
+.rcp-list-content::-webkit-scrollbar-thumb {
+	background-color: rgba(67, 73, 83, 0);
 }
 
-.rcp-list::-webkit-scrollbar-thumb {
-	background: #434953;
+.rcp-list-content:hover::-webkit-scrollbar-thumb {
+	background-color: #434953;
 }
 
-.rcp-list::-webkit-scrollbar-track {
-	background: transparent;
+.rcp-list-content,
+.rcp-row-wrapper {
+	min-width: 0;
+	width: 100%;
 }
 
-.rcp-row {
+/* An implicit width lets theme-added margins inset the row without overflow. */
+.friendGroup .rcp-row {
+	-webkit-app-region: no-drag;
 	align-items: center;
-	appearance: none;
-	background: transparent;
-	border: 0;
 	border-bottom: 1px solid rgba(0, 0, 0, 0.22);
 	box-sizing: border-box;
-	color: inherit;
 	cursor: pointer;
 	display: grid;
 	gap: 8px;
 	grid-template-columns: 42px minmax(0, 1fr) max-content;
+	height: auto;
+	margin: 0;
 	min-height: 58px;
 	padding: 7px 9px;
 	text-align: left;
-	width: 100%;
+	width: auto;
 }
 
-.rcp-row:hover,
+/* Steam makes unreadFriend a flex container, so its auto-width row must grow. */
+.rcp-row-wrapper.unreadFriend > .rcp-row {
+	flex: 1 1 auto;
+	min-width: 0;
+}
+
 .rcp-row:focus-visible {
-	background: linear-gradient(to right, rgba(67, 73, 83, 0.72), rgba(58, 62, 70, 0.38));
-	outline: none;
+	outline: 1px solid currentColor;
+	outline-offset: -1px;
+}
+
+.friendlistListContainer .friend .rcp-avatar-holder {
+	box-sizing: border-box;
+	height: 42px;
+	padding-inline-end: 0;
+	width: 42px;
 }
 
 .rcp-avatar,
 .rcp-avatar-fallback {
-	background: #252a30;
-	border: 1px solid #4f6168;
-	border-radius: 2px;
 	box-sizing: border-box;
-	height: 42px;
+	height: 100%;
 	object-fit: cover;
-	width: 42px;
+	transition: filter 0.24s ease-in-out;
+	width: 100%;
+}
+
+.rcp-avatar {
+	background: #252a30;
+	border-color: #4f6168;
+	border-radius: 2px;
+	border-style: solid;
+	border-width: 1px;
+}
+
+@media only screen and (min-resolution: 1.5dppx) and (max-resolution: 2dppx) {
+	.rcp-avatar {
+		border-width: 0.5px;
+	}
 }
 
 .rcp-avatar-fallback {
 	align-items: center;
-	color: #6dcff6;
+	background: #252a30;
+	border: 1px solid #4f6168;
+	border-radius: 2px;
+	color: inherit;
 	display: flex;
 	font-size: 17px;
 	font-weight: 500;
 	justify-content: center;
 }
 
-.rcp-copy {
+.friend.offline .rcp-avatar-fallback {
+	filter: brightness(60%) saturate(50%);
+}
+
+.friend.offline:hover .rcp-avatar-fallback,
+.friend.offline.Friend_ContextMenuActive .rcp-avatar-fallback {
+	filter: brightness(100%) saturate(100%);
+}
+
+.friend .rcp-copy {
 	align-self: center;
 	display: grid;
 	grid-template-rows: auto auto;
+	height: auto;
+	margin: 0;
 	min-width: 0;
+	transition-delay: 0.2s;
+	transition-duration: 0.24s;
+	transition-property: transform, opacity;
+	transition-timing-function: ease-in-out;
+}
+
+/* Themes color native persona text below a nested stateful labelHolder.
+ * Keep those semantic hooks while preventing native/theme single-line geometry
+ * from changing the plugin's two-line copy block. */
+.friendlistListContainer .friend .rcp-copy.labelHolder {
+	height: auto !important;
+	margin: 0 !important;
+	max-width: none !important;
+	min-width: 0 !important;
+	padding: 0 !important;
+	transform: none !important;
+	width: auto !important;
+}
+
+.rcp-native-persona-text {
+	-webkit-mask: none !important;
+	flex: initial !important;
+	margin: 0 !important;
+	mask: none !important;
+	padding: 0 !important;
+}
+
+.rcp-name.rcp-native-persona-text {
+	${fontDeclarations(NAME_FONT, true)}
+}
+
+.rcp-snippet.rcp-native-persona-text {
+	${fontDeclarations(SNIPPET_FONT, true)}
 }
 
 .rcp-name,
@@ -236,34 +371,28 @@ html[data-recent-chats-poc-open] #recent-chats-poc-panel-host.rcp-content-fallba
 }
 
 .rcp-name {
-	color: #d6d7d8;
-	font-size: 14px;
-	font-weight: 500;
-	line-height: 19px;
+	${fontDeclarations(NAME_FONT)}
 }
 
 .rcp-snippet {
-	color: #4f91ac;
-	font-size: 12px;
-	font-weight: 400;
-	line-height: 17px;
-}
-
-.rcp-snippet-skeleton {
-	animation: rcp-preview-pulse 2s ease-in-out infinite;
-	background: #3d4450;
-	border-radius: 2px;
-	display: block;
-	height: 9px;
-	margin: 4px 0;
-	max-width: 280px;
-	width: 60%;
+	${fontDeclarations(SNIPPET_FONT)}
 }
 
 .rcp-snippet-text {
 	display: block;
 	overflow: hidden;
 	text-overflow: ellipsis;
+}
+
+.rcp-snippet-skeleton {
+	animation: rcp-preview-pulse 2s ease-in-out infinite;
+	background-color: currentColor;
+	border-radius: 2px;
+	display: block;
+	height: 9px;
+	margin: 4px 0;
+	max-width: 280px;
+	width: 60%;
 }
 
 @keyframes rcp-preview-pulse {
@@ -278,6 +407,10 @@ html[data-recent-chats-poc-open] #recent-chats-poc-panel-host.rcp-content-fallba
 }
 
 @media (prefers-reduced-motion: reduce) {
+	#recent-chats-poc-tab-host:not(.rcp-fallback)::before {
+		transition: none;
+	}
+
 	.rcp-snippet-skeleton {
 		animation: none;
 		opacity: 0.75;
@@ -302,18 +435,12 @@ html[data-recent-chats-poc-open] #recent-chats-poc-panel-host.rcp-content-fallba
 	white-space: nowrap;
 }
 
-.rcp-unread {
-	align-items: center;
-	background: #1a9fff;
-	border-radius: 2px;
-	color: #fff;
-	display: flex;
-	font-size: 11px;
-	font-weight: 600;
-	height: 18px;
-	justify-content: center;
-	min-width: 18px;
-	padding: 0 3px;
+/* Keep the native badge style, but return it to the meta column flow. */
+.rcp-meta .rcp-unread {
+	inset-inline-end: auto;
+	margin: 0;
+	position: static;
+	top: auto;
 }
 
 .rcp-empty {
@@ -322,5 +449,39 @@ html[data-recent-chats-poc-open] #recent-chats-poc-panel-host.rcp-content-fallba
 	line-height: 18px;
 	padding: 28px 22px;
 	text-align: center;
+}
+
+#recent-chats-poc-tab-host.rcp-fallback {
+	align-items: center;
+	background: transparent;
+	border: 0;
+	box-sizing: border-box;
+	color: #40474a;
+	cursor: pointer;
+	display: flex;
+	font: 500 13px/20px Motiva Sans, Arial, sans-serif;
+	height: 30px;
+	justify-content: center;
+	letter-spacing: 0.3px;
+	margin-top: 6px;
+	padding: 0 16px;
+	text-align: left;
+	text-transform: uppercase;
+	transition: background-color 233ms ease-in-out, box-shadow 233ms ease-in-out, color 233ms ease-in-out;
+}
+
+.compactView #recent-chats-poc-tab-host.rcp-fallback {
+	height: 24px;
+}
+
+#recent-chats-poc-tab-host.rcp-fallback:hover {
+	background-color: rgba(67, 73, 83, 0.55);
+	color: #b7ccd5;
+}
+
+#recent-chats-poc-tab-host.rcp-fallback.activeTab {
+	background-color: #434953;
+	box-shadow: 0 -2px 3px rgba(0, 0, 0, 0.05), 4px -1px 1px rgba(0, 0, 0, 0.05);
+	color: #b7ccd5;
 }
 `;

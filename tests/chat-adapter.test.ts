@@ -39,8 +39,59 @@ describe('chat adapter', () => {
 		} as SteamRootStore;
 
 		expect(normalizeRecentChats(store)).toEqual([
-			expect.objectContaining({ id: 'friend:42', name: 'Ada', unread: 2, timestamp: 200 }),
-			expect.objectContaining({ id: 'group:123', name: 'Squad', snippet: 'Grace: Older message', unread: 1, timestamp: 100 }),
+			expect.objectContaining({
+				id: 'friend:42',
+				name: 'Ada',
+				presence: 'offline',
+				awayOrSnooze: false,
+				unread: 2,
+				timestamp: 200,
+			}),
+			expect.objectContaining({
+				id: 'group:123',
+				name: 'Squad',
+				snippet: 'Grace: Older message',
+				unread: 1,
+				timestamp: 100,
+			}),
+		]);
+		const normalizedGroup = normalizeRecentChats(store)[1];
+		expect(normalizedGroup.kind).toBe('group');
+		expect(Object.prototype.hasOwnProperty.call(normalizedGroup, 'presence')).toBe(false);
+		expect(Object.prototype.hasOwnProperty.call(normalizedGroup, 'awayOrSnooze')).toBe(false);
+	});
+
+	test('classifies direct-chat presence with Steam priority and away state', () => {
+		const makeChat = (accountId: number, persona?: Record<string, unknown>) => ({
+			accountid_partner: accountId,
+			chat_partner: { display_name: `Friend ${accountId}`, ...(persona === undefined ? {} : { persona }) },
+			GetLastMessage: () => 'Message',
+			time_last_message: accountId,
+		});
+		const chats = [
+			makeChat(1, { is_online: false }),
+			makeChat(2, { is_online: true }),
+			makeChat(3, { is_online: true, is_awayOrSnooze: true }),
+			makeChat(4, { is_online: true, m_broadcastAccountId: '0' }),
+			makeChat(5, { is_online: true, m_broadcastAccountId: 42, is_ingame: true }),
+			makeChat(6, { is_online: true, is_watchingbroadcast: true }),
+			makeChat(7, {}),
+			makeChat(8),
+			makeChat(9, { m_bStatusInitialized: false, is_online: false, is_awayOrSnooze: true }),
+		];
+		const store = { ChatStore: { GetRecentChats: () => chats } } as SteamRootStore;
+		const conversations = normalizeRecentChats(store);
+
+		expect(conversations.map(({ accountId, presence, awayOrSnooze }) => ({ accountId, presence, awayOrSnooze }))).toEqual([
+			{ accountId: 9, presence: 'unknown', awayOrSnooze: false },
+			{ accountId: 8, presence: 'unknown', awayOrSnooze: false },
+			{ accountId: 7, presence: 'unknown', awayOrSnooze: false },
+			{ accountId: 6, presence: 'watchingbroadcast', awayOrSnooze: false },
+			{ accountId: 5, presence: 'ingame', awayOrSnooze: false },
+			{ accountId: 4, presence: 'online', awayOrSnooze: false },
+			{ accountId: 3, presence: 'online', awayOrSnooze: true },
+			{ accountId: 2, presence: 'online', awayOrSnooze: false },
+			{ accountId: 1, presence: 'offline', awayOrSnooze: false },
 		]);
 	});
 

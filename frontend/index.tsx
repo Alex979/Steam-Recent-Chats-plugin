@@ -1,4 +1,4 @@
-import { findModuleExport, getReactInstance, Millennium, modules, definePlugin } from '@steambrew/client';
+import { findClassModule, findModuleExport, getReactInstance, Millennium, modules, definePlugin } from '@steambrew/client';
 import { createRoot, Root } from 'react-dom/client';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
@@ -11,12 +11,20 @@ import {
 	SteamRootStore,
 } from './chat-adapter';
 import { classifyFriendsWindow, FriendsWindowTarget } from './friends-window';
-import { FRIENDS_WINDOW_STYLES } from './styles';
+import {
+	copyNativeTabClassName,
+	createNativeTabActiveController,
+	getNativePresenceClass,
+	isNativePersonaTextClassModule,
+	NativeTabActiveController,
+} from './steam-class-logic';
+import { FRIENDS_WINDOW_STYLES, THEMED_FALLBACK_STYLES } from './styles';
 
 const LOG_PREFIX = '[Recent Chats]';
 const TAB_HOST_ID = 'recent-chats-poc-tab-host';
 const PANEL_HOST_ID = 'recent-chats-poc-panel-host';
 const STYLE_ID = 'recent-chats-poc-styles';
+const THEME_FALLBACK_STYLE_ID = 'recent-chats-poc-theme-fallback';
 const OPEN_ATTRIBUTE = 'data-recent-chats-poc-open';
 const DOCUMENT_RECONCILE_INTERVAL_MS = 500;
 const STARTUP_RECONCILE_INTERVAL_MS = 50;
@@ -41,6 +49,7 @@ interface MountedWindow {
 	panelHost: HTMLElement;
 	header: HTMLElement;
 	closeFromNativeHeader: EventListener;
+	nativeTabActive: NativeTabActiveController;
 }
 
 interface FriendsAnchors {
@@ -133,6 +142,8 @@ function sameConversations(left: RecentConversation[], right: RecentConversation
 			conversation.unread === other.unread &&
 			conversation.avatarUrl === other.avatarUrl &&
 			conversation.accountId === other.accountId &&
+			conversation.presence === other.presence &&
+			conversation.awayOrSnooze === other.awayOrSnooze &&
 			conversation.raw === other.raw
 		);
 	});
@@ -142,13 +153,54 @@ function getPopupMutationObserver(popupWindow: Window): typeof MutationObserver 
 	return (popupWindow as Window & { MutationObserver?: typeof MutationObserver }).MutationObserver ?? MutationObserver;
 }
 
-function ConversationAvatar({ conversation }: { conversation: RecentConversation }) {
-	const [failed, setFailed] = useState(false);
-	if (!conversation.avatarUrl || failed) {
-		return <div className="rcp-avatar-fallback">{conversation.name.slice(0, 1).toUpperCase()}</div>;
-	}
+function joinClasses(...classes: Array<string | false | null | undefined>): string {
+	return classes.filter((className): className is string => Boolean(className)).join(' ');
+}
 
-	return <img className="rcp-avatar" src={conversation.avatarUrl} alt="" draggable={false} onError={() => setFailed(true)} />;
+interface NativePersonaTextClasses {
+	playerName: string;
+	richPresenceLabel: string;
+}
+
+function resolveNativePersonaTextClasses(): NativePersonaTextClasses | undefined {
+	try {
+		const module = findClassModule(isNativePersonaTextClassModule);
+		if (!module) return undefined;
+		return {
+			playerName: module.playerName,
+			richPresenceLabel: module.richPresenceLabel,
+		};
+	} catch {
+		return undefined;
+	}
+}
+
+function isActivationKey(key: string): boolean {
+	return key === 'Enter' || key === ' ';
+}
+
+function ConversationAvatar({ conversation }: { conversation: RecentConversation }) {
+	// Remember the failed URL so a newly fetched avatar URL still gets a retry.
+	const [failedAvatarUrl, setFailedAvatarUrl] = useState<string>();
+	const failed = !!conversation.avatarUrl && conversation.avatarUrl === failedAvatarUrl;
+
+	return (
+		<span className="rcp-avatar-holder avatarHolder">
+			{!conversation.avatarUrl || failed ? (
+				<span className="rcp-avatar-fallback">
+					{conversation.name.slice(0, 1).toUpperCase()}
+				</span>
+			) : (
+				<img
+					className="rcp-avatar avatar"
+					src={conversation.avatarUrl}
+					alt=""
+					draggable={false}
+					onError={() => setFailedAvatarUrl(conversation.avatarUrl)}
+				/>
+			)}
+		</span>
+	);
 }
 
 interface RecentChatsAppProps {
@@ -158,6 +210,7 @@ interface RecentChatsAppProps {
 }
 
 function RecentChatsPanel({ document, popupWindow, browserContext }: RecentChatsAppProps) {
+	const nativePersonaTextClasses = useMemo(resolveNativePersonaTextClasses, []);
 	const [query, setQuery] = useState('');
 	const [store, setStore] = useState<SteamRootStore>();
 	const [conversations, setConversations] = useState<RecentConversation[]>([]);
@@ -257,58 +310,123 @@ function RecentChatsPanel({ document, popupWindow, browserContext }: RecentChats
 	}, [conversations, query]);
 
 	return (
-		<div className="rcp-panel">
+		<div className="rcp-panel FriendsListContent">
 			<div className="rcp-toolbar">
-				<input
-					className="rcp-search"
-					type="search"
-					value={query}
-					onChange={(event) => setQuery(event.currentTarget.value)}
-					placeholder="Search recent chats"
-					aria-label="Search recent chats"
-				/>
-				<button className="rcp-refresh" type="button" onClick={() => refresh()} title="Refresh recent chats">
+				<form className="rcp-search-form MemberListOptionsContainer" onSubmit={(event) => event.preventDefault()}>
+					<div className="rcp-search-container inputContainer">
+						<input
+							className="rcp-search friendSearchInput"
+							type="text"
+							value={query}
+							onChange={(event) => setQuery(event.currentTarget.value)}
+							placeholder="Search recent chats"
+							aria-label="Search recent chats"
+						/>
+						<button
+							className="rcp-search-clear friendSearchClear"
+							type="button"
+							onClick={() => setQuery('')}
+							disabled={!query}
+							aria-label="Clear recent chat search"
+						>
+							<span aria-hidden="true">×</span>
+						</button>
+					</div>
+				</form>
+				<button
+					className="rcp-refresh friendListButton"
+					type="button"
+					onClick={() => refresh()}
+					title="Refresh recent chats"
+				>
 					↻
 				</button>
 			</div>
 			{error && <div className="rcp-error-banner">Recent chats are temporarily unavailable. Try refreshing.</div>}
-			<div className="rcp-list">
-				{filteredConversations.map((conversation) => (
-					<button
-						className="rcp-row"
-						type="button"
-						key={conversation.id}
-						onClick={() => store && openConversation(store, conversation, popupWindow, browserContext)}
-					>
-						<ConversationAvatar conversation={conversation} />
-						<span className="rcp-copy">
-							<span className="rcp-name">{conversation.name}</span>
-							<span
-								className="rcp-snippet"
-								aria-label={conversation.previewState === 'pending' ? 'Loading message preview' : undefined}
+			<div className="rcp-list friendlistListContainer">
+				<div className="rcp-list-content listContentContainer friendGroup">
+					{filteredConversations.map((conversation) => {
+						const nativePresenceClass = getNativePresenceClass(conversation);
+						const isAway = conversation.kind === 'friend' && conversation.awayOrSnooze;
+
+						return (
+							<div
+								className={joinClasses('rcp-row-wrapper', conversation.unread > 0 && 'unreadFriend')}
+								key={conversation.id}
 							>
-								{conversation.previewState === 'pending' ? (
-									<span className="rcp-snippet-skeleton" aria-hidden="true" />
-								) : (
-									<span className="rcp-snippet-text">{conversation.snippet}</span>
-								)}
-							</span>
-						</span>
-						<span className="rcp-meta">
-							{conversation.timestamp > 0 && <span className="rcp-time">{relativeTime(conversation.timestamp, now)}</span>}
-							{conversation.unread > 0 && <span className="rcp-unread">{conversation.unread}</span>}
-						</span>
-					</button>
-				))}
-				{filteredConversations.length === 0 && (
-					<div className="rcp-empty">
-						{error
-							? 'Steam’s chat data could not be read on this build.'
-							: query
-								? 'No recent conversations match that search.'
-								: 'Steam did not return any recent conversations. Try opening a chat once, then refresh.'}
-					</div>
-				)}
+								<div
+									className={joinClasses(
+										'rcp-row',
+										'friend',
+										'friendStatusHover',
+										nativePresenceClass,
+										isAway && 'awayOrSnooze',
+									)}
+									role="button"
+									tabIndex={0}
+									onClick={() => store && openConversation(store, conversation, popupWindow, browserContext)}
+									onKeyDown={(event) => {
+										if (event.repeat || !isActivationKey(event.key)) return;
+										event.preventDefault();
+										if (store) openConversation(store, conversation, popupWindow, browserContext);
+									}}
+								>
+									<ConversationAvatar conversation={conversation} />
+									<span
+										className={joinClasses(
+											'rcp-copy',
+											'labelHolder',
+											nativePresenceClass,
+											isAway && 'awayOrSnooze',
+										)}
+									>
+										<span
+											className={joinClasses(
+												'rcp-name',
+												nativePersonaTextClasses && 'rcp-native-persona-text',
+												nativePersonaTextClasses?.playerName,
+											)}
+										>
+											{conversation.name}
+										</span>
+										<span
+											className={joinClasses(
+												'rcp-snippet',
+												'status',
+												nativePersonaTextClasses && 'rcp-native-persona-text',
+												nativePersonaTextClasses?.richPresenceLabel,
+											)}
+											aria-label={conversation.previewState === 'pending' ? 'Loading message preview' : undefined}
+										>
+											{conversation.previewState === 'pending' ? (
+												<span className="rcp-snippet-skeleton" aria-hidden="true" />
+											) : (
+												<span className="rcp-snippet-text">{conversation.snippet}</span>
+											)}
+										</span>
+									</span>
+									<span className="rcp-meta">
+										{conversation.timestamp > 0 && (
+											<span className="rcp-time">{relativeTime(conversation.timestamp, now)}</span>
+										)}
+										{conversation.unread > 0 && (
+											<span className="rcp-unread FriendMessageCount">{conversation.unread}</span>
+										)}
+									</span>
+								</div>
+							</div>
+						);
+					})}
+					{filteredConversations.length === 0 && (
+						<div className="rcp-empty">
+							{error
+								? 'Steam’s chat data could not be read on this build.'
+								: query
+									? 'No recent conversations match that search.'
+									: 'Steam did not return any recent conversations. Try opening a chat once, then refresh.'}
+						</div>
+					)}
+				</div>
 			</div>
 		</div>
 	);
@@ -333,8 +451,9 @@ function findFriendsAnchors(document: Document): FriendsAnchors | undefined {
 	const header =
 		root.querySelector<HTMLElement>('.socialTabContainer') ??
 		root.querySelector<HTMLElement>('.friendListHeaderContainer');
-	const primaryContent = root.querySelector<HTMLElement>('.FriendsListContent');
-	const fallbackContent = root.querySelector<HTMLElement>('.friendlistListContainer');
+	// The injected panel wears these native classes too; never self-match.
+	const primaryContent = root.querySelector<HTMLElement>('.FriendsListContent:not(.rcp-panel)');
+	const fallbackContent = root.querySelector<HTMLElement>('.friendlistListContainer:not(.rcp-list)');
 	const content = primaryContent ?? fallbackContent;
 
 	if (!header || !content) return undefined;
@@ -384,11 +503,60 @@ function waitForFriendsAnchors(
 	});
 }
 
+const THEMED_CLASS = 'rcp-themed';
+
+// This per-document link distinguishes themed popups from Millennium's Quick
+// CSS marker, which is also present with Steam's default theme.
+function updateThemeDetection(document: Document): void {
+	let themeLink: Element | null = null;
+	try {
+		themeLink = document.querySelector('link#millennium-injected');
+	} catch {
+		themeLink = null;
+	}
+	document.documentElement.classList.toggle(THEMED_CLASS, themeLink !== null);
+
+	// The fallback sheet must precede the theme stylesheet so theme rules win by
+	// source order; the main plugin sheet is appended after it and cannot do this.
+	const fallback = document.getElementById(THEME_FALLBACK_STYLE_ID);
+	if (!themeLink) {
+		fallback?.remove();
+		return;
+	}
+	if (fallback) return;
+	const style = document.createElement('style');
+	style.id = THEME_FALLBACK_STYLE_ID;
+	style.textContent = THEMED_FALLBACK_STYLES;
+	themeLink.before(style);
+}
+
 function removeOrphanedInjection(document: Document): void {
 	document.documentElement.removeAttribute(OPEN_ATTRIBUTE);
+	document.documentElement.classList.remove(THEMED_CLASS);
 	document.getElementById(TAB_HOST_ID)?.remove();
 	document.getElementById(PANEL_HOST_ID)?.remove();
 	document.getElementById(STYLE_ID)?.remove();
+	document.getElementById(THEME_FALLBACK_STYLE_ID)?.remove();
+}
+
+function applyTabClasses(tabHost: HTMLElement, nativeClassName: string | null | undefined): void {
+	const copied = copyNativeTabClassName(nativeClassName);
+	const hasNativeStyles = copied?.split(' ').includes('socialListTab') ?? false;
+	const isHeaderFallback = tabHost.classList.contains('rcp-header-fallback');
+	const isActive = tabHost.classList.contains('activeTab');
+	tabHost.className = joinClasses(
+		copied,
+		'rcp-tab-button',
+		!hasNativeStyles && 'rcp-fallback',
+		isHeaderFallback && 'rcp-header-fallback',
+		isActive && 'activeTab',
+	);
+}
+
+function refreshFallbackTabClasses(mounted: MountedWindow): void {
+	if (!mounted.tabHost.classList.contains('rcp-fallback')) return;
+	const nativeTab = mounted.header.querySelector<HTMLElement>('.friendTab:not(.rcp-tab-button)');
+	if (nativeTab) applyTabClasses(mounted.tabHost, nativeTab.className);
 }
 
 function mountFriendsDocument(
@@ -404,40 +572,51 @@ function mountFriendsDocument(
 
 	removeOrphanedInjection(document);
 	ensureStyle(document);
+	updateThemeDetection(document);
 
+	// A wrapper would give the injected tab a different flex context from its sibling.
+	const nativeTab = header.querySelector<HTMLElement>('.friendTab:not(.rcp-tab-button)');
 	const tabHost = document.createElement('div');
 	tabHost.id = TAB_HOST_ID;
+	applyTabClasses(tabHost, nativeTab?.className);
 	if (!header.classList.contains('socialTabContainer')) tabHost.classList.add('rcp-header-fallback');
-	header.append(tabHost);
-
-	const tabButton = document.createElement('button');
-	tabButton.className = 'rcp-tab-button';
-	tabButton.type = 'button';
-	tabButton.setAttribute('role', 'tab');
-	tabButton.setAttribute('aria-selected', 'false');
-	tabButton.setAttribute('aria-controls', PANEL_HOST_ID);
+	tabHost.setAttribute('role', 'tab');
+	tabHost.tabIndex = 0;
+	tabHost.setAttribute('aria-selected', 'false');
+	tabHost.setAttribute('aria-controls', PANEL_HOST_ID);
 	const tabLabel = document.createElement('span');
 	tabLabel.className = 'tabLabel';
 	tabLabel.textContent = 'Chats';
-	tabButton.append(tabLabel);
-	tabHost.append(tabButton);
+	tabHost.append(tabLabel);
+	(nativeTab?.parentElement ?? header).append(tabHost);
 
 	const panelHost = document.createElement('div');
 	panelHost.id = PANEL_HOST_ID;
 	panelHost.setAttribute('role', 'tabpanel');
 	if (contentIsFallback) panelHost.classList.add('rcp-content-fallback');
 	contentParent.insertBefore(panelHost, content);
+	const nativeTabActive = createNativeTabActiveController(
+		() => header.querySelector<HTMLElement>('.friendTab:not(.rcp-tab-button)')?.classList,
+	);
 
 	const setOpen = (open: boolean) => {
 		const wasOpen = document.documentElement.hasAttribute(OPEN_ATTRIBUTE);
 		if (open) document.documentElement.setAttribute(OPEN_ATTRIBUTE, 'true');
 		else document.documentElement.removeAttribute(OPEN_ATTRIBUTE);
-		tabButton.classList.toggle('rcp-active', open);
-		tabButton.setAttribute('aria-selected', String(open));
+		if (open) nativeTabActive.suppress();
+		else nativeTabActive.restore();
+		tabHost.classList.toggle('activeTab', open);
+		tabHost.setAttribute('aria-selected', String(open));
 		if (wasOpen !== open) console.info(LOG_PREFIX, open ? 'Opened Chats panel' : 'Closed Chats panel');
 	};
 
-	tabButton.addEventListener('click', (event) => {
+	tabHost.addEventListener('click', (event) => {
+		event.preventDefault();
+		event.stopPropagation();
+		setOpen(!document.documentElement.hasAttribute(OPEN_ATTRIBUTE));
+	});
+	tabHost.addEventListener('keydown', (event) => {
+		if (event.repeat || !isActivationKey(event.key)) return;
 		event.preventDefault();
 		event.stopPropagation();
 		setOpen(!document.documentElement.hasAttribute(OPEN_ATTRIBUTE));
@@ -459,7 +638,17 @@ function mountFriendsDocument(
 		`(${target.kind}) using ${contentIsFallback ? 'fallback' : 'primary'} anchors`,
 	);
 
-	return { generation, popupWindow, document, root, tabHost, panelHost, header, closeFromNativeHeader };
+	return {
+		generation,
+		popupWindow,
+		document,
+		root,
+		tabHost,
+		panelHost,
+		header,
+		closeFromNativeHeader,
+		nativeTabActive,
+	};
 }
 
 function cleanupStep(description: string, action: () => void): void {
@@ -472,6 +661,8 @@ function cleanupStep(description: string, action: () => void): void {
 
 function disposeMountedWindow(mounted: MountedWindow): void {
 	cleanupStep('clear the open state', () => mounted.document.documentElement.removeAttribute(OPEN_ATTRIBUTE));
+	cleanupStep('restore the native tab state', () => mounted.nativeTabActive.restore());
+	cleanupStep('clear the theme marker', () => mounted.document.documentElement.classList.remove(THEMED_CLASS));
 	cleanupStep('remove the native-header listener', () =>
 		mounted.header.removeEventListener('click', mounted.closeFromNativeHeader),
 	);
@@ -479,6 +670,9 @@ function disposeMountedWindow(mounted: MountedWindow): void {
 	cleanupStep('remove the Chats tab', () => mounted.tabHost.remove());
 	cleanupStep('remove the Chats panel host', () => mounted.panelHost.remove());
 	cleanupStep('remove the Chats styles', () => mounted.document.getElementById(STYLE_ID)?.remove());
+	cleanupStep('remove the themed fallback styles', () =>
+		mounted.document.getElementById(THEME_FALLBACK_STYLE_ID)?.remove(),
+	);
 }
 
 function currentPopupDocument(popupWindow: Window): Document | undefined {
@@ -544,6 +738,15 @@ async function monitorFriendsWindow(context: PopupContext, generation: number): 
 				}
 				if (attachmentFailed) await delay(reconcileInterval);
 				continue;
+			}
+
+			const activeMount = mountedWindows.get(popupWindow);
+			if (activeMount) {
+				refreshFallbackTabClasses(activeMount);
+				updateThemeDetection(activeMount.document);
+				if (activeMount.document.documentElement.hasAttribute(OPEN_ATTRIBUTE)) {
+					activeMount.nativeTabActive.suppress();
+				}
 			}
 
 			await delay(reconcileInterval);

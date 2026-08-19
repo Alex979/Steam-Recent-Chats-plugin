@@ -7,6 +7,8 @@ function friendConversation(): RecentConversation {
 	return {
 		id: 'friend:42',
 		kind: 'friend',
+		presence: 'online',
+		awayOrSnooze: false,
 		name: 'Ada',
 		snippet: 'Hello',
 		previewState: 'ready',
