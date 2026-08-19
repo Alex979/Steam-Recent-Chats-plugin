@@ -1,3 +1,5 @@
+import type { ConversationPresence } from './chat-adapter';
+
 // Use an explicit state list so similarly named theme classes survive the copy.
 const NATIVE_TAB_STATE_CLASSES = new Set(['activeTab', 'TabSearchActive', 'SearchActive']);
 
@@ -10,6 +12,17 @@ interface SteamClassList {
 export interface NativeTabActiveController {
 	restore(): void;
 	suppress(): void;
+}
+
+type ConversationPresenceSource =
+	| { kind: 'friend'; presence: ConversationPresence }
+	| { kind: 'group' };
+
+export function getNativePresenceClass(
+	conversation: ConversationPresenceSource,
+): Exclude<ConversationPresence, 'unknown'> {
+	if (conversation.kind === 'group') return 'online';
+	return conversation.presence === 'unknown' ? 'offline' : conversation.presence;
 }
 
 export function copyNativeTabClassName(className: string | null | undefined): string | undefined {

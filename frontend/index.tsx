@@ -14,6 +14,7 @@ import { classifyFriendsWindow, FriendsWindowTarget } from './friends-window';
 import {
 	copyNativeTabClassName,
 	createNativeTabActiveController,
+	getNativePresenceClass,
 	NativeTabActiveController,
 } from './steam-class-logic';
 import { FRIENDS_WINDOW_STYLES, THEMED_FALLBACK_STYLES } from './styles';
@@ -334,11 +335,7 @@ function RecentChatsPanel({ document, popupWindow, browserContext }: RecentChats
 									'rcp-row',
 									'friend',
 									'friendStatusHover',
-									conversation.kind === 'group'
-										? 'rcp-group'
-										: conversation.presence === 'unknown'
-											? 'rcp-presence-unknown'
-											: conversation.presence,
+									getNativePresenceClass(conversation),
 									conversation.kind === 'friend' && conversation.awayOrSnooze && 'awayOrSnooze',
 								)}
 								role="button"

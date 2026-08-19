@@ -35,50 +35,10 @@ describe('Steam style integration', () => {
 		expect(getRuleBody('.rcp-row-wrapper.unreadFriend > .rcp-row')).toContain('flex: 1 1 auto;');
 	});
 
-	test('supplies the default-Steam broadcast detail color missing from native rows', () => {
-		expect(
-			getRuleBody('html:not(.rcp-themed) .friendGroup .rcp-row.watchingbroadcast .status'),
-		).toContain('color: #8277b1;');
-		expect(
-			getRuleBody(
-				'html.rcp-themed .friendGroup .rcp-row.rcp-presence-unknown .status,\n' +
-					'html.rcp-themed .friendGroup .rcp-row.watchingbroadcast .status,\n' +
-					'html.rcp-themed .friendGroup .rcp-row.rcp-group .status',
-			),
-		).toContain('opacity: 0.72;');
-	});
-
-	test('keeps group conversations visually neutral under default Steam', () => {
-		expect(getRuleBody('html:not(.rcp-themed) .friendGroup .rcp-row.rcp-group')).toContain(
-			'color: #c5d6d4;',
-		);
-		expect(getRuleBody('html:not(.rcp-themed) .friendGroup .rcp-row.rcp-group .status')).toContain(
-			'color: #8a9997;',
-		);
-	});
-
-	test('uses Steam\'s neutral group-chat hover as a zero-specificity fallback', () => {
-		expect(
-			getRuleBody(
-				':where(\n' +
-					'\t.friendStatusHover.watchingbroadcast:hover,\n' +
-					'\t.friendStatusHover.watchingbroadcast.Friend_ContextMenuActive,\n' +
-					'\t.friendStatusHover.rcp-presence-unknown:hover,\n' +
-					'\t.friendStatusHover.rcp-presence-unknown.Friend_ContextMenuActive,\n' +
-					'\t.friendStatusHover.rcp-group:hover,\n' +
-					'\t.friendStatusHover.rcp-group.Friend_ContextMenuActive\n' +
-					')',
-			),
-		).toContain('background-color: rgba(47, 56, 68, 0.5);');
-		expect(FRIENDS_WINDOW_STYLES).not.toContain(
-			'.friendGroup .rcp-row.friendStatusHover.watchingbroadcast:hover',
-		);
-	});
-
-	test('keeps unresolved persona rows neutral and readable', () => {
-		expect(
-			getRuleBody('html:not(.rcp-themed) .friendGroup .rcp-row.rcp-presence-unknown .status'),
-		).toContain('color: #8a9997;');
+	test('leaves all presence-state visuals to native Steam classes', () => {
+		expect(FRIENDS_WINDOW_STYLES).not.toContain('watchingbroadcast');
+		expect(FRIENDS_WINDOW_STYLES).not.toContain('rcp-presence-unknown');
+		expect(FRIENDS_WINDOW_STYLES).not.toContain('rcp-group');
 	});
 
 	test('defines avatar border widths at base and native high-DPI scales', () => {

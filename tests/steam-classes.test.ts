@@ -1,6 +1,10 @@
 import { describe, expect, test } from 'bun:test';
 
-import { copyNativeTabClassName, createNativeTabActiveController } from '../frontend/steam-class-logic';
+import {
+	copyNativeTabClassName,
+	createNativeTabActiveController,
+	getNativePresenceClass,
+} from '../frontend/steam-class-logic';
 
 function createClassList(...initialClasses: string[]) {
 	const classes = new Set(initialClasses);
@@ -15,6 +19,14 @@ function createClassList(...initialClasses: string[]) {
 }
 
 describe('Steam class mapping logic', () => {
+	test('maps unsupported visual states onto native presence classes', () => {
+		expect(getNativePresenceClass({ kind: 'group' })).toBe('online');
+		expect(getNativePresenceClass({ kind: 'friend', presence: 'unknown' })).toBe('offline');
+		expect(getNativePresenceClass({ kind: 'friend', presence: 'watchingbroadcast' })).toBe(
+			'watchingbroadcast',
+		);
+	});
+
 	test('copies a native tab class list without the known state classes', () => {
 		expect(copyNativeTabClassName(' friendTab  socialListTab activeTab TabSearchActive themeTab socialListTab ')).toBe(
 			'friendTab socialListTab themeTab',

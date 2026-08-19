@@ -247,44 +247,6 @@ html:not(.rcp-themed) .rcp-toolbar .rcp-search.friendSearchInput {
 	min-width: 0;
 }
 
-/* Valve has no broadcast detail rule for friend rows. */
-html:not(.rcp-themed) .friendGroup .rcp-row.watchingbroadcast .status {
-	color: #8277b1;
-}
-
-/* A group has no single persona presence, so keep its row deliberately neutral. */
-html:not(.rcp-themed) .friendGroup .rcp-row.rcp-group {
-	color: #c5d6d4;
-}
-
-html:not(.rcp-themed) .friendGroup .rcp-row.rcp-group .status {
-	color: #8a9997;
-}
-
-/* Reuse Steam's neutral group-chat hover when no presence-specific rule exists.
-   Zero specificity lets every native or theme hover rule override the fallback. */
-:where(
-	.friendStatusHover.watchingbroadcast:hover,
-	.friendStatusHover.watchingbroadcast.Friend_ContextMenuActive,
-	.friendStatusHover.rcp-presence-unknown:hover,
-	.friendStatusHover.rcp-presence-unknown.Friend_ContextMenuActive,
-	.friendStatusHover.rcp-group:hover,
-	.friendStatusHover.rcp-group.Friend_ContextMenuActive
-) {
-	background-color: rgba(47, 56, 68, 0.5);
-}
-
-/* Theme colors still flow through the row; opacity supplies secondary-text contrast. */
-html.rcp-themed .friendGroup .rcp-row.rcp-presence-unknown .status,
-html.rcp-themed .friendGroup .rcp-row.watchingbroadcast .status,
-html.rcp-themed .friendGroup .rcp-row.rcp-group .status {
-	opacity: 0.72;
-}
-
-html:not(.rcp-themed) .friendGroup .rcp-row.rcp-presence-unknown .status {
-	color: #8a9997;
-}
-
 .rcp-row:focus-visible {
 	outline: 1px solid currentColor;
 	outline-offset: -1px;
