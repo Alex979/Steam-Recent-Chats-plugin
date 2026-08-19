@@ -13,6 +13,22 @@ export const THEMED_FALLBACK_STYLES = `
 }
 `;
 
+interface FontMetrics {
+	fontSize: string;
+	fontWeight: number;
+	lineHeight: string;
+}
+
+const NAME_FONT: FontMetrics = { fontSize: '14px', fontWeight: 500, lineHeight: '19px' };
+const SNIPPET_FONT: FontMetrics = { fontSize: '12px', fontWeight: 400, lineHeight: '17px' };
+
+function fontDeclarations(metrics: FontMetrics, important = false): string {
+	const suffix = important ? ' !important' : '';
+	return `font-size: ${metrics.fontSize}${suffix};
+	font-weight: ${metrics.fontWeight}${suffix};
+	line-height: ${metrics.lineHeight}${suffix};`;
+}
+
 export const FRIENDS_WINDOW_STYLES = `
 #recent-chats-poc-tab-host {
 	/* Match the native tab when themes add vertical padding. */
@@ -338,15 +354,11 @@ html:not(.rcp-themed) .rcp-toolbar .rcp-search.friendSearchInput {
 }
 
 .rcp-name.rcp-native-persona-text {
-	font-size: 14px !important;
-	font-weight: 500 !important;
-	line-height: 19px !important;
+	${fontDeclarations(NAME_FONT, true)}
 }
 
 .rcp-snippet.rcp-native-persona-text {
-	font-size: 12px !important;
-	font-weight: 400 !important;
-	line-height: 17px !important;
+	${fontDeclarations(SNIPPET_FONT, true)}
 }
 
 .rcp-name,
@@ -359,15 +371,11 @@ html:not(.rcp-themed) .rcp-toolbar .rcp-search.friendSearchInput {
 }
 
 .rcp-name {
-	font-size: 14px;
-	font-weight: 500;
-	line-height: 19px;
+	${fontDeclarations(NAME_FONT)}
 }
 
 .rcp-snippet {
-	font-size: 12px;
-	font-weight: 400;
-	line-height: 17px;
+	${fontDeclarations(SNIPPET_FONT)}
 }
 
 .rcp-snippet-text {
