@@ -32,6 +32,7 @@ describe('Steam style integration', () => {
 
 	test('resets native unread width so themed margins remain inside the list', () => {
 		expect(getRuleBody('.friendGroup .rcp-row')).toContain('width: auto;');
+		expect(getRuleBody('.rcp-row-wrapper.unreadFriend > .rcp-row')).toContain('flex: 1 1 auto;');
 	});
 
 	test('supplies default-Steam broadcast detail and hover colors missing from native rows', () => {

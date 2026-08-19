@@ -241,6 +241,12 @@ html:not(.rcp-themed) .rcp-toolbar .rcp-search.friendSearchInput {
 	width: auto;
 }
 
+/* Steam makes unreadFriend a flex container, so its auto-width row must grow. */
+.rcp-row-wrapper.unreadFriend > .rcp-row {
+	flex: 1 1 auto;
+	min-width: 0;
+}
+
 /* Valve has no broadcast detail or hover rules for friend rows. */
 html:not(.rcp-themed) .friendGroup .rcp-row.watchingbroadcast .status {
 	color: #8277b1;
