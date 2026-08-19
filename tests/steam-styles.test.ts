@@ -5,8 +5,8 @@ import { FRIENDS_WINDOW_STYLES, THEMED_FALLBACK_STYLES } from '../frontend/style
 function getRuleBody(selector: string): string {
 	const escapedSelector = selector.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 	const match = FRIENDS_WINDOW_STYLES.match(new RegExp(`${escapedSelector}\\s*\\{([^}]*)\\}`));
-	expect(match).toBeDefined();
-	return match?.[1] ?? '';
+	expect(match).not.toBeNull();
+	return match![1];
 }
 
 describe('Steam style integration', () => {
