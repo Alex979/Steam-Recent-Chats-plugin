@@ -366,7 +366,7 @@ function RecentChatsPanel({ document, popupWindow, browserContext }: RecentChats
 									tabIndex={0}
 									onClick={() => store && openConversation(store, conversation, popupWindow, browserContext)}
 									onKeyDown={(event) => {
-										if (!isActivationKey(event.key)) return;
+										if (event.repeat || !isActivationKey(event.key)) return;
 										event.preventDefault();
 										if (store) openConversation(store, conversation, popupWindow, browserContext);
 									}}
@@ -616,7 +616,7 @@ function mountFriendsDocument(
 		setOpen(!document.documentElement.hasAttribute(OPEN_ATTRIBUTE));
 	});
 	tabHost.addEventListener('keydown', (event) => {
-		if (!isActivationKey(event.key)) return;
+		if (event.repeat || !isActivationKey(event.key)) return;
 		event.preventDefault();
 		event.stopPropagation();
 		setOpen(!document.documentElement.hasAttribute(OPEN_ATTRIBUTE));
