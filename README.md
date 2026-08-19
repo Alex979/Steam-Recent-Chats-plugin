@@ -2,7 +2,7 @@
 
 A Millennium plugin that adds a **Chats** tab to Steam's Friends window, in both the desktop and in-game overlay. No more searching through your friends list to find that invite you missed or continue an old thread. Easily see all your latest invites and messages in one dedicated window.
 
-<img width="404" height="465" alt="recent-chat-plugin-screenshot" src="https://github.com/user-attachments/assets/dce6df2c-fecb-496b-9112-867b9d6c969d" />
+<img width="441" height="716" alt="recent-chat-plugin-screenshot" src="screenshots/showcase-default.png" />
 
 ## Features
 
