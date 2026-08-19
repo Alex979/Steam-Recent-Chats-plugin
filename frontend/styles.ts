@@ -349,10 +349,6 @@ html:not(.rcp-themed) .rcp-toolbar .rcp-search.friendSearchInput {
 	line-height: 17px !important;
 }
 
-.friend.awayOrSnooze .rcp-copy {
-	opacity: 0.5;
-}
-
 .rcp-name,
 .rcp-snippet {
 	display: block;

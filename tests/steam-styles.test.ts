@@ -37,6 +37,7 @@ describe('Steam style integration', () => {
 
 	test('leaves all presence-state visuals to native Steam classes', () => {
 		expect(FRIENDS_WINDOW_STYLES).not.toContain('watchingbroadcast');
+		expect(FRIENDS_WINDOW_STYLES).not.toContain('awayOrSnooze');
 		expect(FRIENDS_WINDOW_STYLES).not.toContain('rcp-presence-unknown');
 		expect(FRIENDS_WINDOW_STYLES).not.toContain('rcp-group');
 	});
@@ -55,7 +56,6 @@ describe('Steam style integration', () => {
 	});
 
 	test('exposes row text theme hooks without surrendering copy geometry', () => {
-		expect(getRuleBody('.friend.awayOrSnooze .rcp-copy')).toContain('opacity: 0.5;');
 		const copyRule = getRuleBody('.friendlistListContainer .friend .rcp-copy.labelHolder');
 		expect(copyRule).toContain('transform: none !important;');
 		expect(copyRule).toContain('width: auto !important;');
