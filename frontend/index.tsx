@@ -375,16 +375,16 @@ function RecentChatsPanel({ document, popupWindow, browserContext }: RecentChats
 									<span
 										className={joinClasses(
 											'rcp-copy',
-											isAway && 'labelHolder',
-											isAway && nativePresenceClass,
+											'labelHolder',
+											nativePresenceClass,
 											isAway && 'awayOrSnooze',
 										)}
 									>
 										<span
 											className={joinClasses(
 												'rcp-name',
-												isAway && nativePersonaTextClasses && 'rcp-native-persona-text',
-												isAway && nativePersonaTextClasses?.playerName,
+												nativePersonaTextClasses && 'rcp-native-persona-text',
+												nativePersonaTextClasses?.playerName,
 											)}
 										>
 											{conversation.name}
@@ -393,8 +393,8 @@ function RecentChatsPanel({ document, popupWindow, browserContext }: RecentChats
 											className={joinClasses(
 												'rcp-snippet',
 												'status',
-												isAway && nativePersonaTextClasses && 'rcp-native-persona-text',
-												isAway && nativePersonaTextClasses?.richPresenceLabel,
+												nativePersonaTextClasses && 'rcp-native-persona-text',
+												nativePersonaTextClasses?.richPresenceLabel,
 											)}
 											aria-label={conversation.previewState === 'pending' ? 'Loading message preview' : undefined}
 										>

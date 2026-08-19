@@ -316,10 +316,10 @@ html:not(.rcp-themed) .rcp-toolbar .rcp-search.friendSearchInput {
 	transition-timing-function: ease-in-out;
 }
 
-/* Away themes color native persona text below a nested stateful labelHolder.
+/* Themes color native persona text below a nested stateful labelHolder.
  * Keep those semantic hooks while preventing native/theme single-line geometry
  * from changing the plugin's two-line copy block. */
-.friendlistListContainer .friend.awayOrSnooze .rcp-copy.labelHolder {
+.friendlistListContainer .friend .rcp-copy.labelHolder {
 	height: auto !important;
 	margin: 0 !important;
 	max-width: none !important;

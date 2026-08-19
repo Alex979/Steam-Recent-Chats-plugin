@@ -54,13 +54,11 @@ describe('Steam style integration', () => {
 		);
 	});
 
-	test('exposes away text theme hooks without surrendering copy geometry', () => {
+	test('exposes row text theme hooks without surrendering copy geometry', () => {
 		expect(getRuleBody('.friend.awayOrSnooze .rcp-copy')).toContain('opacity: 0.5;');
-		const awayCopyRule = getRuleBody(
-			'.friendlistListContainer .friend.awayOrSnooze .rcp-copy.labelHolder',
-		);
-		expect(awayCopyRule).toContain('transform: none !important;');
-		expect(awayCopyRule).toContain('width: auto !important;');
+		const copyRule = getRuleBody('.friendlistListContainer .friend .rcp-copy.labelHolder');
+		expect(copyRule).toContain('transform: none !important;');
+		expect(copyRule).toContain('width: auto !important;');
 		expect(getRuleBody('.rcp-native-persona-text')).toContain('-webkit-mask: none !important;');
 		expect(getRuleBody('.rcp-name.rcp-native-persona-text')).toContain('font-size: 14px !important;');
 		expect(getRuleBody('.rcp-snippet.rcp-native-persona-text')).toContain('font-size: 12px !important;');
