@@ -1,4 +1,4 @@
-import { findModuleExport, getReactInstance, Millennium, modules, definePlugin } from '@steambrew/client';
+import { findClassModule, findModuleExport, getReactInstance, Millennium, modules, definePlugin } from '@steambrew/client';
 import { createRoot, Root } from 'react-dom/client';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
@@ -15,6 +15,7 @@ import {
 	copyNativeTabClassName,
 	createNativeTabActiveController,
 	getNativePresenceClass,
+	isNativePersonaTextClassModule,
 	NativeTabActiveController,
 } from './steam-class-logic';
 import { FRIENDS_WINDOW_STYLES, THEMED_FALLBACK_STYLES } from './styles';
@@ -156,6 +157,24 @@ function joinClasses(...classes: Array<string | false | null | undefined>): stri
 	return classes.filter((className): className is string => Boolean(className)).join(' ');
 }
 
+interface NativePersonaTextClasses {
+	playerName: string;
+	richPresenceLabel: string;
+}
+
+function resolveNativePersonaTextClasses(): NativePersonaTextClasses | undefined {
+	try {
+		const module = findClassModule(isNativePersonaTextClassModule);
+		if (!module) return undefined;
+		return {
+			playerName: module.playerName,
+			richPresenceLabel: module.richPresenceLabel,
+		};
+	} catch {
+		return undefined;
+	}
+}
+
 function isActivationKey(key: string): boolean {
 	return key === 'Enter' || key === ' ';
 }
@@ -191,6 +210,7 @@ interface RecentChatsAppProps {
 }
 
 function RecentChatsPanel({ document, popupWindow, browserContext }: RecentChatsAppProps) {
+	const nativePersonaTextClasses = useMemo(resolveNativePersonaTextClasses, []);
 	const [query, setQuery] = useState('');
 	const [store, setStore] = useState<SteamRootStore>();
 	const [conversations, setConversations] = useState<RecentConversation[]>([]);
@@ -325,53 +345,78 @@ function RecentChatsPanel({ document, popupWindow, browserContext }: RecentChats
 			{error && <div className="rcp-error-banner">Recent chats are temporarily unavailable. Try refreshing.</div>}
 			<div className="rcp-list friendlistListContainer">
 				<div className="rcp-list-content listContentContainer friendGroup">
-					{filteredConversations.map((conversation) => (
-						<div
-							className={joinClasses('rcp-row-wrapper', conversation.unread > 0 && 'unreadFriend')}
-							key={conversation.id}
-						>
+					{filteredConversations.map((conversation) => {
+						const nativePresenceClass = getNativePresenceClass(conversation);
+						const isAway = conversation.kind === 'friend' && conversation.awayOrSnooze;
+
+						return (
 							<div
-								className={joinClasses(
-									'rcp-row',
-									'friend',
-									'friendStatusHover',
-									getNativePresenceClass(conversation),
-									conversation.kind === 'friend' && conversation.awayOrSnooze && 'awayOrSnooze',
-								)}
-								role="button"
-								tabIndex={0}
-								onClick={() => store && openConversation(store, conversation, popupWindow, browserContext)}
-								onKeyDown={(event) => {
-									if (!isActivationKey(event.key)) return;
-									event.preventDefault();
-									if (store) openConversation(store, conversation, popupWindow, browserContext);
-								}}
+								className={joinClasses('rcp-row-wrapper', conversation.unread > 0 && 'unreadFriend')}
+								key={conversation.id}
 							>
-								<ConversationAvatar conversation={conversation} />
-								<span className="rcp-copy">
-									<span className="rcp-name">{conversation.name}</span>
+								<div
+									className={joinClasses(
+										'rcp-row',
+										'friend',
+										'friendStatusHover',
+										nativePresenceClass,
+										isAway && 'awayOrSnooze',
+									)}
+									role="button"
+									tabIndex={0}
+									onClick={() => store && openConversation(store, conversation, popupWindow, browserContext)}
+									onKeyDown={(event) => {
+										if (!isActivationKey(event.key)) return;
+										event.preventDefault();
+										if (store) openConversation(store, conversation, popupWindow, browserContext);
+									}}
+								>
+									<ConversationAvatar conversation={conversation} />
 									<span
-										className="rcp-snippet status"
-										aria-label={conversation.previewState === 'pending' ? 'Loading message preview' : undefined}
+										className={joinClasses(
+											'rcp-copy',
+											isAway && 'labelHolder',
+											isAway && nativePresenceClass,
+											isAway && 'awayOrSnooze',
+										)}
 									>
-										{conversation.previewState === 'pending' ? (
-											<span className="rcp-snippet-skeleton" aria-hidden="true" />
-										) : (
-											<span className="rcp-snippet-text">{conversation.snippet}</span>
+										<span
+											className={joinClasses(
+												'rcp-name',
+												isAway && nativePersonaTextClasses && 'rcp-native-persona-text',
+												isAway && nativePersonaTextClasses?.playerName,
+											)}
+										>
+											{conversation.name}
+										</span>
+										<span
+											className={joinClasses(
+												'rcp-snippet',
+												'status',
+												isAway && nativePersonaTextClasses && 'rcp-native-persona-text',
+												isAway && nativePersonaTextClasses?.richPresenceLabel,
+											)}
+											aria-label={conversation.previewState === 'pending' ? 'Loading message preview' : undefined}
+										>
+											{conversation.previewState === 'pending' ? (
+												<span className="rcp-snippet-skeleton" aria-hidden="true" />
+											) : (
+												<span className="rcp-snippet-text">{conversation.snippet}</span>
+											)}
+										</span>
+									</span>
+									<span className="rcp-meta">
+										{conversation.timestamp > 0 && (
+											<span className="rcp-time">{relativeTime(conversation.timestamp, now)}</span>
+										)}
+										{conversation.unread > 0 && (
+											<span className="rcp-unread FriendMessageCount">{conversation.unread}</span>
 										)}
 									</span>
-								</span>
-								<span className="rcp-meta">
-									{conversation.timestamp > 0 && (
-										<span className="rcp-time">{relativeTime(conversation.timestamp, now)}</span>
-									)}
-									{conversation.unread > 0 && (
-										<span className="rcp-unread FriendMessageCount">{conversation.unread}</span>
-									)}
-								</span>
+								</div>
 							</div>
-						</div>
-					))}
+						);
+					})}
 					{filteredConversations.length === 0 && (
 						<div className="rcp-empty">
 							{error

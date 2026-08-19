@@ -14,6 +14,13 @@ export interface NativeTabActiveController {
 	suppress(): void;
 }
 
+export interface NativePersonaTextClassModule {
+	playerName: string;
+	richPresenceContainer: string;
+	richPresenceLabel: string;
+	statusAndName: string;
+}
+
 type ConversationPresenceSource =
 	| { kind: 'friend'; presence: ConversationPresence }
 	| { kind: 'group' };
@@ -23,6 +30,13 @@ export function getNativePresenceClass(
 ): Exclude<ConversationPresence, 'unknown'> {
 	if (conversation.kind === 'group') return 'online';
 	return conversation.presence === 'unknown' ? 'offline' : conversation.presence;
+}
+
+export function isNativePersonaTextClassModule(module: unknown): module is NativePersonaTextClassModule {
+	if (!module || typeof module !== 'object') return false;
+	return ['playerName', 'richPresenceContainer', 'richPresenceLabel', 'statusAndName'].every(
+		(key) => typeof (module as Record<string, unknown>)[key] === 'string' && (module as Record<string, string>)[key] !== '',
+	);
 }
 
 export function copyNativeTabClassName(className: string | null | undefined): string | undefined {

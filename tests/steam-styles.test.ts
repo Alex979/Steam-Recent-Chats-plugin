@@ -54,8 +54,17 @@ describe('Steam style integration', () => {
 		);
 	});
 
-	test('dims away copy and fallback avatars like native Steam rows', () => {
+	test('exposes away text theme hooks without surrendering copy geometry', () => {
 		expect(getRuleBody('.friend.awayOrSnooze .rcp-copy')).toContain('opacity: 0.5;');
+		const awayCopyRule = getRuleBody(
+			'.friendlistListContainer .friend.awayOrSnooze .rcp-copy.labelHolder',
+		);
+		expect(awayCopyRule).toContain('transform: none !important;');
+		expect(awayCopyRule).toContain('width: auto !important;');
+		expect(getRuleBody('.rcp-native-persona-text')).toContain('-webkit-mask: none !important;');
+	});
+
+	test('dims offline fallback avatars like native Steam rows', () => {
 		expect(getRuleBody('.friend.offline .rcp-avatar-fallback')).toContain(
 			'filter: brightness(60%) saturate(50%);',
 		);

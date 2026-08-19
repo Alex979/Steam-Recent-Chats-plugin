@@ -4,6 +4,7 @@ import {
 	copyNativeTabClassName,
 	createNativeTabActiveController,
 	getNativePresenceClass,
+	isNativePersonaTextClassModule,
 } from '../frontend/steam-class-logic';
 
 function createClassList(...initialClasses: string[]) {
@@ -25,6 +26,24 @@ describe('Steam class mapping logic', () => {
 		expect(getNativePresenceClass({ kind: 'friend', presence: 'watchingbroadcast' })).toBe(
 			'watchingbroadcast',
 		);
+	});
+
+	test('identifies only the complete native persona text class module', () => {
+		expect(
+			isNativePersonaTextClassModule({
+				playerName: 'native-name',
+				richPresenceContainer: 'native-presence',
+				richPresenceLabel: 'native-status',
+				statusAndName: 'native-copy',
+			}),
+		).toBeTrue();
+		expect(
+			isNativePersonaTextClassModule({
+				playerName: 'native-name',
+				richPresenceLabel: 'native-status',
+				statusAndName: 'native-copy',
+			}),
+		).toBeFalse();
 	});
 
 	test('copies a native tab class list without the known state classes', () => {

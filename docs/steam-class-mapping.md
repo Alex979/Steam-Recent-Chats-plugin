@@ -31,9 +31,9 @@ div.rcp-panel.FriendsListContent
         div.rcp-row.friend.friendStatusHover.(online|ingame|watchingbroadcast|offline)[.awayOrSnooze]
           span.rcp-avatar-holder.avatarHolder
             img.rcp-avatar.avatar
-          span.rcp-copy
-            span.rcp-name
-            span.rcp-snippet.status
+          span.rcp-copy[.labelHolder.(online|ingame).awayOrSnooze]
+            span.rcp-name[.<native-playerName>]
+            span.rcp-snippet.status[.<native-richPresenceLabel>]
           span.rcp-meta
             span.rcp-time
             span.rcp-unread.FriendMessageCount
@@ -89,11 +89,12 @@ The toolbar itself is plugin-owned. No native always-open toolbar fits this DOM 
 | `friend` | `.friendGroup .friend` — requires the `friendGroup` ancestor | Native 38px height, margins, padding, and row direction. Recent Chats overrides only this geometry with an equal-specificity 58px grid rule. |
 | `online`, `ingame`, `offline` | `.friend.online`, `.friend.ingame`, `.friend.offline` | Persona-aware row color inherited by the title and presence-specific hover backgrounds. Offline also activates Valve's avatar dimming, which `friendStatusHover` restores on hover. Group conversations deliberately use `online`; unresolved direct-chat presence deliberately uses `offline`. |
 | `watchingbroadcast` | `.friend.watchingbroadcast` | Purple broadcast foreground. Valve defines no matching hover background, and Recent Chats adds none: broadcast rows behave exactly like Steam's native friend rows and will inherit any future Steam or theme rule automatically. |
-| `awayOrSnooze` | `.friend.awayOrSnooze .labelHolder` targets markup Recent Chats deliberately omits | Preserves Steam's semantic state token. Plugin CSS mirrors the native 50% label opacity and transition on `rcp-copy`, including for in-game-away friends. |
+| `awayOrSnooze` + `labelHolder` | `.friend.awayOrSnooze .labelHolder`; theme selectors that require a nested presence/away holder | Away rows expose Steam's state on both the row and copy block so native/theme foreground and opacity rules match. Plugin CSS neutralizes the hook's single-line width, padding, and transform rules. |
+| Resolved persona name/status tokens | Theme selectors such as `.online .awayOrSnooze .<playerName>` and the corresponding rich-presence label | Away text receives the same semantic theme colors as the native Friends list. Only the two text tokens are reused; plugin CSS strips their mask, margin, and padding while retaining Recent Chats typography and ellipsis. |
 | `friendStatusHover` + presence | Valve's online, in-game, and offline hover selectors | Native presence-appropriate hover background and offline-avatar hover restoration. |
 | `status` | `.friend.online .status`, `.friend.ingame .status` | Darker native presence color for the message snippet. |
 
-Resolved direct rows mirror Valve's own classifier: in-game, then watching a broadcast, then online, otherwise offline; `awayOrSnooze` is appended independently. Missing, empty, or explicitly uninitialized persona objects remain `unknown` in the data model so later polls can resolve them, but render with the native `offline` class. Group conversations retain their group data model while rendering with `online`, giving them the same established Steam and theme foreground, detail, and hover treatment as an online friend. Steam supplies no validated literal desktop rule for the desired two-line typography. `.rcp-name` therefore owns only its size, weight, and line height while inheriting the native/theme row color; `.rcp-snippet` likewise owns only typography while `status` supplies its native/theme color.
+Resolved direct rows mirror Valve's own classifier: in-game, then watching a broadcast, then online, otherwise offline; `awayOrSnooze` is appended independently. Away copy additionally recreates Steam's nested presence/away state and resolves only the current persona name/status tokens, because themes can scope their away foreground to that exact native structure while styling the outer row hover separately. Missing, empty, or explicitly uninitialized persona objects remain `unknown` in the data model so later polls can resolve them, but render with the native `offline` class. Group conversations retain their group data model while rendering with `online`, giving them the same established Steam and theme foreground, detail, and hover treatment as an online friend. Steam supplies no validated literal desktop rule for the desired two-line typography. `.rcp-name` therefore owns only its size, weight, and line height while inheriting the native/theme row color; `.rcp-snippet` likewise owns only typography while `status` supplies its native/theme color.
 
 The `friendGroup` ancestor is intentional, but Steam's `.friendGroup .friend` has higher specificity than a single `rcp-row` class. The plugin's `.friendGroup .rcp-row` explicitly restores the 58px height, grid columns, margins, padding, and `width:auto` used by Recent Chats. The width reset also overrides `.unreadFriend .friend { width:100% }`, so themes that force row margins (`margin: 2px 16px !important` floating-row designs) inset both read and unread rows instead of pushing them past the card edge. Because Steam makes `.unreadFriend` a flex container, unread rows also flex-grow to fill its available width instead of shrinking to their content.
 
@@ -143,8 +144,8 @@ Scrolling is deliberately moved off the container onto the rows card (`.rcp-list
 | `richPresenceContainer` | The literal rule requires `.AvatarAndUser .labelHolder`; that ancestor is absent. |
 | `richPresenceLabel` | Literal rules require one-on-one voice or `ChatRoomListGroupItem`; those ancestors are absent. |
 | `LastMessage` | No exact literal `.LastMessage` selector exists. `.LastMessageBlock` is a different class. |
-| `labelHolder` (on the copy block) | Valve's `.friend .labelHolder` contributions were minor, and themes size this hook for native single-line rows — one ships `.friend .labelHolder { width: 10px !important }`, which collapsed the plugin's ellipsized two-line copy to one character. The copy block uses only `rcp-copy`. |
-| `findClassModule` persona/avatar/Friends lookups | Removed. The resolved minified rules impose foreign 36px avatar geometry, masks, compact typography, and a `LastMessage` color that overrides the desired online snippet color. A successful lookup did not prove that its component context was correct. |
+| `labelHolder` (on every copy block) | Valve's `.friend .labelHolder` contributions are minor, and themes size this hook for native single-line rows — one ships `.friend .labelHolder { width: 10px !important }`. It is now restricted to away rows, where themes require it for semantic foregrounds, and its geometry is explicitly neutralized. |
+| Broad `findClassModule` persona/avatar/Friends adoption | Removed. Avatar, container, and `LastMessage` tokens impose foreign geometry and colors. The narrow away-text resolver retains only `playerName` and `richPresenceLabel`, with their non-color box effects neutralized. |
 
 ## Millennium theme adaptation
 
@@ -152,7 +153,7 @@ Themes cannot target `rcp-*` classes, so the plugin-owned toolbar strip would ot
 
 The search field gets the same translucent treatment (`rgba(0,0,0,.25)`, `color:inherit`) through a separate fallback sheet that exists only in themed documents, with a `:focus` variant matching the specificity of Valve's `[type="text"]:focus` colors so the field does not revert to Steam's focus background. It is inserted immediately *before* the `millennium-injected` link rather than appended with the main sheet: at Steam-equal specificity (`.rcp-search.friendSearchInput`), source order makes it beat Valve's default `#262930` field while any theme rule that can restyle Steam's own field (at least `.friendSearchInput[type=text]` specificity, or `!important`) still wins. Themes that ignore the field get the neutral translucency instead of Steam's default colors.
 
-Theme-hardening rules learned from live themes, encoded above: match the native tab's `box-sizing`, toggle its real active-state class, reset row width so forced margins inset rather than overflow, express every visual row state through a native presence class, avoid native hook classes whose themed sizing assumes native markup (`labelHolder`), scroll the card rather than the container, and pin only the Chats label's opacity against label-hiding designs.
+Theme-hardening rules learned from live themes, encoded above: match the native tab's `box-sizing`, toggle its real active-state class, reset row width so forced margins inset rather than overflow, express every visual row state through native presence structure, neutralize native hook geometry when a semantic theme selector requires that hook, scroll the card rather than the container, and pin only the Chats label's opacity against label-hiding designs.
 
 ## Plugin-owned properties
 
