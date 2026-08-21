@@ -28,8 +28,6 @@ On a typical Windows installation, the final path is:
 C:\Program Files (x86)\Steam\millennium\plugins\recent-chats
 ```
 
-If upgrading from the early proof of concept, remove the old `recent-chats-poc` folder after installing `recent-chats` so Millennium does not load both copies.
-
 ## Privacy and compatibility
 
 - Chat metadata stays in Steam's memory; this plugin does not persist message content.

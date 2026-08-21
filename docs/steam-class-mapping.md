@@ -15,7 +15,7 @@ A native class is kept only when a desktop rule matches the element's real tag, 
 ## Effective injected structure
 
 ```text
-div#recent-chats-poc-tab-host.friendTab.socialListTab.rcp-tab-button[.activeTab]
+div#recent-chats-tab-host.friendTab.socialListTab.rcp-tab-button[.activeTab]
   span.tabLabel
 
 div.rcp-panel.FriendsListContent
@@ -51,7 +51,7 @@ The tab's native classes are copied from the live sibling. The diagram shows the
 | `tabLabel` | `.socialListTab .tabLabel` | Opacity and the label transition. |
 | `friendTab` | No rule in Valve's stylesheet | Deliberate exception: it is a native markup and Millennium-theme hook. It is copied from the live sibling even though Valve does not style it directly. |
 
-The tab element is itself the host (`#recent-chats-poc-tab-host`) and mounts as a direct sibling of the native tab: a wrapper div changes the flex context, which let themes size the injected tab differently from the native one. Its inline padding is symmetric (`padding-inline`) so the label stays centered under any theme's start padding, and it is explicitly `box-sizing: content-box` to match the native tab — a theme's vertical padding must add to the shared 30px height on both tabs equally.
+The tab element is itself the host (`#recent-chats-tab-host`) and mounts as a direct sibling of the native tab: a wrapper div changes the flex context, which let themes size the injected tab differently from the native one. Its inline padding is symmetric (`padding-inline`) so the label stays centered under any theme's start padding, and it is explicitly `box-sizing: content-box` to match the native tab — a theme's vertical padding must add to the shared 30px height on both tabs equally.
 
 The label carries `opacity: 1 !important` at ID specificity: single-tab theme designs blank all native tab labels (`.socialListTab .tabLabel { opacity: 0 !important }`) because a lone FRIENDS label is redundant, but the label is the only thing identifying the Chats tab. Every other inherited theme style still applies to it.
 
