@@ -18,7 +18,7 @@
     },
     "type": "module",
     "name": "recent-chats",
-    "version": "0.4.0",
+    "version": "0.4.1",
     "description": "A recent-conversations view for Steam Friends & Chat",
     "author": "Alex Broaddus",
     "license": "MIT"

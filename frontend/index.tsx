@@ -21,11 +21,11 @@ import {
 import { FRIENDS_WINDOW_STYLES, THEMED_FALLBACK_STYLES } from './styles';
 
 const LOG_PREFIX = '[Recent Chats]';
-const TAB_HOST_ID = 'recent-chats-poc-tab-host';
-const PANEL_HOST_ID = 'recent-chats-poc-panel-host';
-const STYLE_ID = 'recent-chats-poc-styles';
-const THEME_FALLBACK_STYLE_ID = 'recent-chats-poc-theme-fallback';
-const OPEN_ATTRIBUTE = 'data-recent-chats-poc-open';
+const TAB_HOST_ID = 'recent-chats-tab-host';
+const PANEL_HOST_ID = 'recent-chats-panel-host';
+const STYLE_ID = 'recent-chats-styles';
+const THEME_FALLBACK_STYLE_ID = 'recent-chats-theme-fallback';
+const OPEN_ATTRIBUTE = 'data-recent-chats-open';
 const DOCUMENT_RECONCILE_INTERVAL_MS = 500;
 const STARTUP_RECONCILE_INTERVAL_MS = 50;
 const STARTUP_RECONCILE_DURATION_MS = 5_000;

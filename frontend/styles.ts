@@ -30,7 +30,7 @@ function fontDeclarations(metrics: FontMetrics, important = false): string {
 }
 
 export const FRIENDS_WINDOW_STYLES = `
-#recent-chats-poc-tab-host {
+#recent-chats-tab-host {
 	/* Match the native tab when themes add vertical padding. */
 	box-sizing: content-box;
 	cursor: pointer;
@@ -41,7 +41,7 @@ export const FRIENDS_WINDOW_STYLES = `
 	position: relative;
 }
 
-#recent-chats-poc-tab-host.rcp-header-fallback {
+#recent-chats-tab-host.rcp-header-fallback {
 	bottom: 8px;
 	height: 30px;
 	position: absolute;
@@ -49,7 +49,7 @@ export const FRIENDS_WINDOW_STYLES = `
 	z-index: 20;
 }
 
-#recent-chats-poc-tab-host:not(.rcp-fallback)::before {
+#recent-chats-tab-host:not(.rcp-fallback)::before {
 	background-color: currentColor;
 	content: '';
 	inset: 0;
@@ -60,35 +60,35 @@ export const FRIENDS_WINDOW_STYLES = `
 	z-index: 0;
 }
 
-#recent-chats-poc-tab-host:not(.rcp-fallback):not(.activeTab):hover::before,
-#recent-chats-poc-tab-host:not(.rcp-fallback):not(.activeTab):focus-visible::before {
+#recent-chats-tab-host:not(.rcp-fallback):not(.activeTab):hover::before,
+#recent-chats-tab-host:not(.rcp-fallback):not(.activeTab):focus-visible::before {
 	opacity: 0.32;
 }
 
 /* Some single-tab themes hide native labels, but this label identifies Chats. */
-#recent-chats-poc-tab-host .tabLabel {
+#recent-chats-tab-host .tabLabel {
 	opacity: 1 !important;
 	position: relative;
 	z-index: 1;
 }
 
-#recent-chats-poc-panel-host {
+#recent-chats-panel-host {
 	display: none;
 	flex: 1 1 auto;
 	min-height: 0;
 	overflow: hidden;
 }
 
-html[data-recent-chats-poc-open] #recent-chats-poc-panel-host {
+html[data-recent-chats-open] #recent-chats-panel-host {
 	display: flex;
 }
 
-html[data-recent-chats-poc-open] #recent-chats-poc-panel-host ~ .FriendsListContent {
+html[data-recent-chats-open] #recent-chats-panel-host ~ .FriendsListContent {
 	display: none !important;
 }
 
-html[data-recent-chats-poc-open] #recent-chats-poc-panel-host.rcp-content-fallback ~ .friendlistListContainer,
-html[data-recent-chats-poc-open] #recent-chats-poc-panel-host.rcp-content-fallback ~ .FriendsListChatSection {
+html[data-recent-chats-open] #recent-chats-panel-host.rcp-content-fallback ~ .friendlistListContainer,
+html[data-recent-chats-open] #recent-chats-panel-host.rcp-content-fallback ~ .FriendsListChatSection {
 	display: none !important;
 }
 
@@ -407,7 +407,7 @@ html:not(.rcp-themed) .rcp-toolbar .rcp-search.friendSearchInput {
 }
 
 @media (prefers-reduced-motion: reduce) {
-	#recent-chats-poc-tab-host:not(.rcp-fallback)::before {
+	#recent-chats-tab-host:not(.rcp-fallback)::before {
 		transition: none;
 	}
 
@@ -451,7 +451,7 @@ html:not(.rcp-themed) .rcp-toolbar .rcp-search.friendSearchInput {
 	text-align: center;
 }
 
-#recent-chats-poc-tab-host.rcp-fallback {
+#recent-chats-tab-host.rcp-fallback {
 	align-items: center;
 	background: transparent;
 	border: 0;
@@ -470,16 +470,16 @@ html:not(.rcp-themed) .rcp-toolbar .rcp-search.friendSearchInput {
 	transition: background-color 233ms ease-in-out, box-shadow 233ms ease-in-out, color 233ms ease-in-out;
 }
 
-.compactView #recent-chats-poc-tab-host.rcp-fallback {
+.compactView #recent-chats-tab-host.rcp-fallback {
 	height: 24px;
 }
 
-#recent-chats-poc-tab-host.rcp-fallback:hover {
+#recent-chats-tab-host.rcp-fallback:hover {
 	background-color: rgba(67, 73, 83, 0.55);
 	color: #b7ccd5;
 }
 
-#recent-chats-poc-tab-host.rcp-fallback.activeTab {
+#recent-chats-tab-host.rcp-fallback.activeTab {
 	background-color: #434953;
 	box-shadow: 0 -2px 3px rgba(0, 0, 0, 0.05), 4px -1px 1px rgba(0, 0, 0, 0.05);
 	color: #b7ccd5;

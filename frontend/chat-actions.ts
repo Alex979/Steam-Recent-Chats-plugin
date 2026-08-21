@@ -52,5 +52,8 @@ export function openConversation(
 		return;
 	}
 
-	console.warn(LOG_PREFIX, 'No compatible chat-opening method was found.', conversation);
+	console.warn(LOG_PREFIX, 'No compatible chat-opening method was found.', {
+		id: conversation.id,
+		kind: conversation.kind,
+	});
 }
