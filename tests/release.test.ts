@@ -1,7 +1,8 @@
 import { afterEach, describe, expect, test } from 'bun:test';
 import { mkdtemp, mkdir, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { dirname, join, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 import { createReleaseArchive, readReleaseVersion, RELEASE_FILES, verifyReleaseArchive } from '../scripts/release';
 
@@ -40,5 +41,12 @@ describe('release packaging', () => {
 		expect(new TextDecoder().decode(unzipSync(archive)['recent-chats/.millennium/Dist/index.js'])).toBe(
 			'plugin bundle',
 		);
+	});
+});
+
+describe('checked-in manifests', () => {
+	test('keep package.json and plugin.json synchronized', async () => {
+		const repositoryRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
+		await expect(readReleaseVersion(repositoryRoot)).resolves.toBeDefined();
 	});
 });
